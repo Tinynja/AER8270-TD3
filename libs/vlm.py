@@ -369,10 +369,12 @@ class VLM:
 			self.solve()
 			self.postProcess()
 			self.computeForcesAndMoment()
-			self.writeSpanload('Spanload_A%.2lf.dat' % alpha)
-			self.writeSolution('3D_sol_A%.2lf.dat' % alpha)
+			self.writeSpanload('dat/Spanload_A%.2lf.dat' % alpha)
+			self.writeSolution('dat/3D_sol_A%.2lf.dat' % alpha)
 
-			print('Alpha= %.2lf CL= %.3lf CD= %.4lf CM= %.4lf' % (alpha, self.CL[-1], self.CD[-1], self.CM[-1]))
+			#print('Alpha= %.2lf CL= %.3lf CD= %.4lf CM= %.4lf' % (alpha, self.CL[-1], self.CD[-1], self.CM[-1]))
+
+
 
 
 if __name__ == '__main__':
