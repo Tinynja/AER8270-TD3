@@ -1,5 +1,9 @@
+#Standard libs
 from math import *
+
+#Pip libs
 import numpy as np
+
 class Vector3:
 	def __init__(self,x,y,z):
 		self.x = x
@@ -38,19 +42,19 @@ class Vector3:
 			print('Error: Index out of range for Vector3')
 			exit()
 
-	def dot(self,other):
+	def dot(self, other):
 		x = self.x*other.x
 		y = self.y*other.y
 		z = self.z*other.z
 		return x+y+z
 
-	def div(self,other):
+	def div(self, other):
 		x = self.x/other.x
 		y = self.y/other.y
 		z = self.z/other.z
 		return x+y+z
 
-	def crossProduct(self,other):
+	def crossProduct(self, other):
 		x = self.y*other.z-self.z*other.y
 		y = self.z*other.x-self.x*other.z
 		z = self.x*other.y-self.y*other.x

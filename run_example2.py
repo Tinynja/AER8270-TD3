@@ -1,4 +1,5 @@
-from vlm import *
+from libs.vlm import *
+
 prob = VLM(ni=5,
 		       nj=50,
 		       chordRoot=1.0,
@@ -11,4 +12,5 @@ prob = VLM(ni=5,
 		       referencePoint=[0.0,0.0,0.0],
 		       wingType=1,
 		       alphaRange = [0.0,10.0])
+
 prob.run()

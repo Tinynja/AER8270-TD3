@@ -1,9 +1,14 @@
-import numpy as np
-from Vector3 import Vector3
-from vortexRing import vortexRing as panel
+#Standard libs
 from math import *
 import sys
+
+#Pip libs
+import numpy as np
 from scipy import linalg
+
+#User libs
+from libs.Vector3 import Vector3
+from libs.vortexRing import vortexRing as panel
 
 class VLM:
 	def __init__(self, ni=5, nj=10, chordRoot=1.0, chordTip=1.0, twistRoot=0.0, twistTip=0.0, span=5.0, sweep=30.0, Sref = 1.0, referencePoint=[0.0,0.0,0.0], wingType=1, alphaRange = [0.0]):

@@ -1,6 +1,11 @@
+#Standard libs
 from math import*
+
+#Pip libs
 import numpy as np
-from Vector3 import Vector3
+
+#User libs
+from libs.Vector3 import Vector3
 
 class vortexRing:
 	"""docstring for panel"""
