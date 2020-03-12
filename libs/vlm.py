@@ -52,6 +52,7 @@ class VLM:
 		self.Ufree = Vector3(1.0,0.0,0.0)
 		self.rho = 1.0
 
+
 	def calcA(self):
 
 		self.A *= 0.0
@@ -133,6 +134,8 @@ class VLM:
 		self.CL[-1] /= ( 0.5 * self.rho * self.Ufree.Magnitude()**2 * self.Sref)
 		self.CD[-1] /= ( 0.5 * self.rho * self.Ufree.Magnitude()**2 * self.Sref)
 		self.CM[-1] /= ( 0.5 * self.rho * self.Ufree.Magnitude()**2 * self.Sref * self.cavg)
+
+		self.CL_alpha = (self.CL[-1]-self.CL[0])/radians(self.alphaRange[-1]-self.alphaRange[0])
 
 	def writeSpanload(self,outputfile):
 		ypos = np.zeros(self.nj)
