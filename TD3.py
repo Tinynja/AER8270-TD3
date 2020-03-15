@@ -1,6 +1,7 @@
 # Standard libs
 from math import *
 import multiprocessing
+import sys
 from functools import partial
 from itertools import product
 
@@ -36,6 +37,8 @@ def run_q1a():
 
 # Question 1 (b)
 def vlm_enqueue(queue, sweep, ar):
+	print(f"Calculating (sweep={sweep}, a/r={ar})...")
+	sys.stdout.flush()
 	vlm_prob = VLM(ni=5,
 				   nj=50,
 				   chordRoot=1.0,
