@@ -7,8 +7,8 @@ import numpy as np
 from scipy import linalg
 
 #User libs
-from libs.Vector3 import Vector3
-from libs.vortexRing import vortexRing as panel
+from libraries.Vector3 import Vector3
+from libraries.vortexRing import vortexRing as panel
 
 class VLM:
 	def __init__(self, ni=5, nj=10, chordRoot=1.0, chordTip=1.0, twistRoot=0.0, twistTip=0.0, span=5.0, sweep=30.0, Sref = 1.0, referencePoint=[0.0,0.0,0.0], wingType=1, alphaRange = [0.0]):
@@ -372,8 +372,8 @@ class VLM:
 			self.solve()
 			self.postProcess()
 			self.computeForcesAndMoment()
-			self.writeSpanload('dat/Spanload_A%.2lf.dat' % alpha)
-			self.writeSolution('dat/3D_sol_A%.2lf.dat' % alpha)
+			self.writeSpanload('data/Spanload_A%.2lf.dat' % alpha)
+			self.writeSolution('data/3D_sol_A%.2lf.dat' % alpha)
 
 			#print('Alpha= %.2lf CL= %.3lf CD= %.4lf CM= %.4lf' % (alpha, self.CL[-1], self.CD[-1], self.CM[-1]))
 

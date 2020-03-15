@@ -5,7 +5,7 @@ from math import*
 import numpy as np
 
 #User libs
-from libs.Vector3 import Vector3
+from libraries.Vector3 import Vector3
 
 class vortexRing:
 	"""docstring for panel"""
