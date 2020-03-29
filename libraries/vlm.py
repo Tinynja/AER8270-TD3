@@ -37,6 +37,7 @@ class VLM:
 		self.twistRoot = twistRoot
 		self.twistTip  = twistTip
 		self.span      = span
+		self.AR        = self.span/(self.chordRoot)
 		self.sweep     = sweep * pi / 180.0
 		self.referencePoint = Vector3(referencePoint[0],
 			                          referencePoint[1],
