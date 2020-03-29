@@ -48,7 +48,6 @@ def run_q1a_cache():
 		for row in reader:
 			q1a = row
 	# Print results
-	print("----Question 1 (a)----")
 	print("Aspect ratio: %g" % q1a["AR"])
 	print("Pente de portance-incidence: %f*pi" % (q1a["CL_alpha"]/pi))
 	print("Trainee: %e" % q1a["CD"])
@@ -132,10 +131,14 @@ def run_q1b_cache():
 if __name__ == "__main__":
 	run = {"q1a":1, "q1b":1}
 	multiprocessing.freeze_support()
-	pool = multiprocessing.Pool()
+	pool = multiprocessing.Pool(processes=)
 	queue = multiprocessing.Manager().Queue()
 	for q in run:
 		if run[q] == 1:
+			if len(q) == 3:
+				print("----Question " + q[1] + " (" + q[2] + ")----")
+			else:
+				print("------Question " + q[1] + "------")
 			try:
 				f = open("data/" + q + ".csv", "r", newline="")
 				f.close()
@@ -143,5 +146,9 @@ if __name__ == "__main__":
 			except FileNotFoundError:
 				locals()["run_" + q](pool, queue)
 		elif run[q] == 2:
+			if len(q) == 3:
+				print("----Question " + q[1] + " (" + q[2] + ")----")
+			else:
+				print("------Question " + q[1] + "------")
 			locals()["run_" + q](pool, queue)
 	pool.terminate()
