@@ -76,7 +76,7 @@ def vlm_enqueue(queue, sweep, ar):
 
 def run_q1b(pool, queue):
 	# Defining the aspect ratio and CL_alpha lists
-	q1b = {"AR":[1e-5]+list(np.arange(0.5,1,0.5)), "sweep":[0, 30], "halfAR": [], "probs":[], "CL_alpha":[]}
+	q1b = {"AR":[1e-5]+list(np.arange(0.25,8,0.25)), "sweep":[0, 30, 45, 60], "halfAR": [], "probs":[], "CL_alpha":[]}
 	# Hierarchy: probs/sweep/ar
 	for i in range(len(q1b["sweep"])):
 		q1b["probs"].append([0]*len(q1b["AR"]))
