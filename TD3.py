@@ -36,17 +36,17 @@ def run_q1a(pool, queue):
 		writer.writerow(["AR", "CL_alpha", "CD"])
 		writer.writerow([q1a.AR, q1a.CL_alpha, q1a.CD[-1]])
 	# Print results
-	with open("data/q1a.csv", "r", newline="") as f:
-		run_q1a_cache(f)
+	run_q1a_cache()
 	# Return results
 	return q1a
 
-def run_q1a_cache(f):
+def run_q1a_cache():
 	q1a = []
 	# Read results from CSV
-	reader = csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONNUMERIC)
-	for row in reader:
-		q1a = row
+	with open("data/q1a.csv", "r", newline="") as f:
+		reader = csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONNUMERIC)
+		for row in reader:
+			q1a = row
 	# Print results
 	print("----Question 1 (a)----")
 	print("Aspect ratio: %g" % q1a["AR"])
@@ -100,24 +100,24 @@ def run_q1b(pool, queue):
 			for a in range(len(q1b["AR"])):
 				writer.writerow([q1b["sweep"][s], q1b["AR"][a], q1b["CL_alpha"][s][a]])
 	# Print results
-	with open("data/q1b.csv", "r", newline="") as f:
-		run_q1b_cache(f)
+	run_q1b_cache()
 	# Return results
 	return q1b
 
-def run_q1b_cache(f):
+def run_q1b_cache():
 	q1b = {"AR":[], "sweep":[], "CL_alpha":[]}
 	# Read results from CSV
-	reader = csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONNUMERIC)
-	for row in reader:
-		if len(q1b["sweep"]) == 0 or row["sweep"] > q1b["sweep"][-1]:
-			q1b["sweep"].append(row["sweep"])
-			q1b["CL_alpha"].append([])
-			i = -1
-		if len(q1b["AR"]) == 0 or row["AR"] > q1b["AR"][-1]:
-			q1b["AR"].append(row["AR"])
-		i += 1
-		q1b["CL_alpha"][-1].append(row["CL_alpha"])
+	with open("data/q1b.csv", "r", newline="") as f:
+		reader = csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONNUMERIC)
+		for row in reader:
+			if len(q1b["sweep"]) == 0 or row["sweep"] > q1b["sweep"][-1]:
+				q1b["sweep"].append(row["sweep"])
+				q1b["CL_alpha"].append([])
+				i = -1
+			if len(q1b["AR"]) == 0 or row["AR"] > q1b["AR"][-1]:
+				q1b["AR"].append(row["AR"])
+			i += 1
+			q1b["CL_alpha"][-1].append(row["CL_alpha"])
 	# Generate plot
 	for i in range(len(q1b["sweep"])):
 		plt.plot(q1b["AR"], q1b["CL_alpha"][i])
@@ -137,9 +137,11 @@ if __name__ == "__main__":
 	for q in run:
 		if run[q] == 1:
 			try:
-				with open("data/" + q + ".csv", "r", newline="") as f:
-					locals()["run_" + q + "_cache"](f)
+				f = open("data/" + q + ".csv", "r", newline="")
+				f.close()
+				locals()["run_" + q + "_cache"]()
 			except FileNotFoundError:
 				locals()["run_" + q](pool, queue)
 		elif run[q] == 2:
 			locals()["run_" + q](pool, queue)
+	pool.terminate()
