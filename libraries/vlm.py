@@ -47,8 +47,9 @@ class VLM:
 		self.CL = []
 		self.CD = []
 		self.CM = []
-		self.spanLoad = []
+		self.spanLoad = {}
 
+		if isinstance(alphaRange, (int, float)): alphaRange = (alphaRange,)
 		self.alphaRange = alphaRange
 		self.Ufree = Vector3(1.0,0.0,0.0)
 		self.rho = 1.0
@@ -136,9 +137,10 @@ class VLM:
 		self.CD[-1] /= ( 0.5 * self.rho * self.Ufree.Magnitude()**2 * self.Sref)
 		self.CM[-1] /= ( 0.5 * self.rho * self.Ufree.Magnitude()**2 * self.Sref * self.cavg)
 
-		self.CL_alpha = (self.CL[-1]-self.CL[0])/radians(self.alphaRange[-1]-self.alphaRange[0])
+		if len(self.alphaRange) > 1:
+			self.CL_alpha = (self.CL[-1]-self.CL[0])/radians(self.alphaRange[-1]-self.alphaRange[0])
 
-	def writeSpanload(self,outputfile):
+	def writeSpanload(self, outputfile, alpha):
 		ypos = np.zeros(self.nj)
 		cl_sec = np.zeros(self.nj) 
 		for j in range(self.nj):
@@ -156,10 +158,16 @@ class VLM:
 			ypos[j] = self.panels[self.ni * j].forceActingPoint()[1]
 			cl_sec[j] = cl
 
+		self.spanLoad[alpha] = {'y': [], 'cl_sec': []}
+
 		fid = open(outputfile, 'w')
 		fid.write("VARIABLES= \"Y\",\"Cl\"\n")
+
 		for i,y in enumerate(ypos):
 			fid.write("%.4lf %.4lf\n" % (y, cl_sec[i]))
+			self.spanLoad[alpha]['y'].append(y)
+			self.spanLoad[alpha]['cl_sec'].append(cl_sec[i])
+
 		fid.close()
         
 	
@@ -373,7 +381,7 @@ class VLM:
 			self.solve()
 			self.postProcess()
 			self.computeForcesAndMoment()
-			self.writeSpanload('data/Spanload_A%.2lf.dat' % alpha)
+			self.writeSpanload('data/Spanload_A%.2lf.dat' % alpha, alpha)
 			self.writeSolution('data/3D_sol_A%.2lf.dat' % alpha)
 
 			#print('Alpha= %.2lf CL= %.3lf CD= %.4lf CM= %.4lf' % (alpha, self.CL[-1], self.CD[-1], self.CM[-1]))
