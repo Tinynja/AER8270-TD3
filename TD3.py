@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 from libraries.vlm import *
 
 
-def vlm_enqueue(queue, taper_ratio, alpharange, AR, sweep):
-	print(f'Calculating (sweep={sweep}, AR={ar})...')
+def vlm_enqueue(queue, taper_ratio, alphaRange, AR, sweep):
+	print(f'Calculating (taper_ratio={taper_ratio}, alphaRange={alphaRange}, AR={AR}, sweep={sweep})...')
 	sys.stdout.flush()
 	vlm_prob = VLM(ni=5,
 				   nj=50,
@@ -28,9 +28,9 @@ def vlm_enqueue(queue, taper_ratio, alpharange, AR, sweep):
 				   Sref=AR/2,
 				   referencePoint=[0.0,0.0,0.0],
 				   wingType=1,
-				   alphaRange = alpharange)
+				   alphaRange = alphaRange)
 	vlm_prob.run()
-	queue.put({'sweep':sweep, 'ar':ar, 'prob':vlm_prob})
+	queue.put({'sweep':sweep, 'ar':AR, 'prob':vlm_prob})
 
 
 #----Question 1 (a)----
@@ -132,7 +132,65 @@ def show_q1b():
 
 #----Question 1 (c)----
 def run_q1c(pool, queue):
-	sweep = (0, 45, 135)
+	sweep = np.arange(0, 45, 15)
+	# sweep = (0, 45, 135)
+	AR = 4
+	alpha = 10
+	taper_ratio = 1
+	# Enqueuing VLM results from multiprocessor pool for each combination of AR and sweep
+	vlm_partial = partial(vlm_enqueue, queue, taper_ratio, alpha, AR)
+	pool.map(vlm_partial, sweep)
+	# Dequeue results
+	q1c = {}
+	q1c['semispan'] =  AR/2
+	for i in range(queue.qsize()):
+		qi = queue.get()
+		q1c[qi['sweep']] = qi['prob'].spanLoad[alpha]
+		q1c[qi['sweep']]['CL'] =  qi['prob'].CL[0]
+	# Save results as CSV
+	with open('data/q1c.csv', 'w', newline='') as f:
+		writer = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
+		writer.writerow(['sweep', '2y/b', 'cl/CL'])
+		for s in q1c:
+			if not isinstance(s, str):
+				for i in range(len(q1c[s]['y'])):
+					writer.writerow([s, q1c[s]['y'][i]/q1c['semispan'], q1c[s]['cl_sec'][i]/q1c[s]['CL']])
+	# Return results
+	return q1c
+
+def show_q1c():
+	# Read results from CSV
+	q1c = {}
+	with open('data/q1c.csv', 'r', newline='') as f:
+		reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
+		for row in reader:
+			if row['sweep'] not in q1c: q1c[row['sweep']] = {'2y/b':[], 'cl/CL':[]}
+			q1c[row['sweep']]['2y/b'].append(row['2y/b'])
+			q1c[row['sweep']]['cl/CL'].append(row['cl/CL'])
+	# Read reference values from CSV
+	q1c_ref = {}
+	with open('data/q1c_ref.csv', 'r', newline='') as f:
+		reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
+		for row in reader:
+			if row['sweep'] not in q1c_ref: q1c_ref[row['sweep']] = {'2y/b':[], 'cl/CL':[]}
+			q1c_ref[row['sweep']]['2y/b'].append(row['2y/b'])
+			q1c_ref[row['sweep']]['cl/CL'].append(row['cl/CL'])
+	# Generate plot
+	plt.figure()
+	for s in sorted(q1c):
+		plt.plot(q1c[s]['2y/b'], q1c[s]['cl/CL'], label=u'\u039B = %d\u00B0' % (s))
+	for s in sorted(q1c_ref):
+		plt.plot(q1c_ref[s]['2y/b'], q1c_ref[s]['cl/CL'], '--', label=u'\u039B = %d\u00B0' % (s))
+	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
+	plt.ylabel('cl/CL')
+	plt.title('Effet du sweep sur la distribution de portance')
+	plt.grid()
+	plt.legend()
+	plt.savefig('figs/q1c.png') #save plot to file
+
+
+#----Question 1 (d)----
+def run_q1d(pool, queue):
 	AR = 4
 	alpha = 10
 	taper_ratio = 1
@@ -157,42 +215,13 @@ def run_q1c(pool, queue):
 	# Return results
 	return q1c
 
-def show_q1c():
-	# Read results from CSV
-	q1c = {}
-	with open('data/q1c.csv', 'r', newline='') as f:
-		reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
-		for row in reader:
-			if row['sweep'] not in q1c: q1c[row['sweep']] = {'2y/b':[], 'cl/CL':[]}
-			q1c[row['sweep']]['2y/b'].append(row['2y/b'])
-			q1c[row['sweep']]['cl/CL'].append(row['cl/CL'])
-	# Read reference values from CSV
-	# q1b_ref = {}
-	# with open('data/q1b_ref.csv', 'r', newline='') as f:
-	# 	reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
-	# 	for row in reader:
-	# 		if row['sweep'] not in q1b_ref: q1b_ref[row['sweep']] = {}
-	# 		if 'AR' not in q1b_ref[row['sweep']]: q1b_ref[row['sweep']]['AR'] = []
-	# 		if 'CL_alpha' not in q1b_ref[row['sweep']]: q1b_ref[row['sweep']]['CL_alpha'] = []
-	# 		q1b_ref[row['sweep']]['AR'].append(row['AR'])
-	# 		q1b_ref[row['sweep']]['CL_alpha'].append(row['CL_alpha'])
-	# Generate plot
-	plt.figure()
-	for s in sorted(q1c):
-		plt.plot(q1c[s]['2y/b'], q1c[s]['cl/CL'], label=u'\u039B = %d\u00B0' % (s))
-	# for s in q1b_ref:
-	# 	plt.plot(q1b_ref[s]['AR'], q1b_ref[s]['CL_alpha'], '--', label=u'\u039B %d\u00B0 (ref)' % (s))
-	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
-	plt.ylabel('cl/CL')
-	plt.title('Effet du sweep sur la distribution de portance')
-	plt.grid()
-	plt.legend()
-	plt.savefig('figs/q1c.png') #save plot to file
+def show_q1d():
+	pass
 
 
 #----Code Runner----
 if __name__ == '__main__':
-	questions = {'q1a':0, 'q1b':0, 'q1c':2}
+	questions = {'q1a':0, 'q1b':0, 'q1c':1, 'q1d':0}
 	multiprocessing.freeze_support()
 	pool = multiprocessing.Pool()
 	queue = multiprocessing.Manager().Queue()
