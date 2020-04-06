@@ -49,7 +49,7 @@ class VLM:
 		self.CM = []
 		self.spanLoad = {}
 
-		if isinstance(alphaRange, (int, float)): alphaRange = (alphaRange,)
+		if not hasattr(alphaRange, '__iter__'): alphaRange = (alphaRange,)
 		self.alphaRange = alphaRange
 		self.Ufree = Vector3(1.0,0.0,0.0)
 		self.rho = 1.0
