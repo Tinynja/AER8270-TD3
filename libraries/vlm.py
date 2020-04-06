@@ -47,6 +47,8 @@ class VLM:
 		self.CL = []
 		self.CD = []
 		self.CM = []
+
+		self.localChord = {}
 		self.spanLoad = {}
 
 		if not hasattr(alphaRange, '__iter__'): alphaRange = (alphaRange,)
@@ -158,7 +160,7 @@ class VLM:
 			ypos[j] = self.panels[self.ni * j].forceActingPoint()[1]
 			cl_sec[j] = cl
 
-		self.spanLoad[alpha] = {'y': [], 'cl_sec': []}
+		self.spanLoad[alpha] = {'y': [], 'cl_sec': [], 'localChord': []}
 
 		fid = open(outputfile, 'w')
 		fid.write("VARIABLES= \"Y\",\"Cl\"\n")
@@ -167,6 +169,7 @@ class VLM:
 			fid.write("%.4lf %.4lf\n" % (y, cl_sec[i]))
 			self.spanLoad[alpha]['y'].append(y)
 			self.spanLoad[alpha]['cl_sec'].append(cl_sec[i])
+			self.spanLoad[alpha]['localChord'].append((self.localChord['chord'][i]+self.localChord['chord'][i+1])/2)
 
 		fid.close()
         
@@ -175,44 +178,60 @@ class VLM:
 		out = 'Variables=\"X\",\"Y\",\"Z\",\"GAMMA\"\n'
 		out += 'ZONE T=\"WING\" i=%d,j=%d,k=1, ZONETYPE=Ordered\nDATAPACKING=BLOCK\nVARLOCATION=([4]=CELLCENTERED)\n'%(self.ni+1,self.nj+1)
 
+		x = []
+		y = []
+		z = []
+
 		for j in range(0,self.nj):
 			for i in range(0,self.ni):
 				ia = self.ni*j + i
 				pan = self.panels[ia]
 				out += '%lf '%(pan.p1.x)
+				x.append(pan.p1.x)
 			out += '%lf '%(pan.p2.x)
+			x.append(pan.p2.x)
 
 		for i in range(0,self.ni):
 			ia = self.ni*j + i
 			pan = self.panels[ia]
 			out += '%lf '%(pan.p4.x)
+			x.append(pan.p4.x)
 		out += '%lf\n'%(pan.p3.x)
+		x.append(pan.p3.x)
 
 		for j in range(0,self.nj):
 			for i in range(0,self.ni):
 				ia = self.ni*j + i
 				pan = self.panels[ia]
 				out += '%lf '%(pan.p1.y)
+				y.append(pan.p1.y)
 			out += '%lf '%(pan.p2.y)
+			y.append(pan.p2.y)
 
 		for i in range(0,self.ni):
 			ia = self.ni*j + i
 			pan = self.panels[ia]
 			out += '%lf '%(pan.p4.y)
+			y.append(pan.p4.y)
 		out += '%lf\n'%(pan.p3.y)
+		y.append(pan.p3.y)
 
 		for j in range(0,self.nj):
 			for i in range(0,self.ni):
 				ia = self.ni*j + i
 				pan = self.panels[ia]
 				out += '%lf '%(pan.p1.z)
+				z.append(pan.p1.z)
 			out += '%lf '%(pan.p2.z)
+			z.append(pan.p2.z)
 
 		for i in range(0,self.ni):
 			ia = self.ni*j + i
 			pan = self.panels[ia]
 			out += '%lf '%(pan.p4.z)
+			z.append(pan.p4.z)
 		out += '%lf\n'%(pan.p3.z)
+		z.append(pan.p3.z)
 
 		for j in range(0,self.nj):
 			for i in range(0,self.ni):
@@ -220,11 +239,21 @@ class VLM:
 				pan = self.panels[ia]
 				out += '%lf '%(self.gamma[ia])
 
-
 		f = open(outputfile,'w')
 		f.write(out)
 		f.close()
 
+		self.localChord = {'y':[], 'chord':[]}
+		for i,yi in enumerate(y + [0,]):
+			if i == 0:
+				chord = 0
+			elif yi != y[i-1]:
+				self.localChord['y'].append(y[i-1])
+				self.localChord['chord'].append(chord)
+				chord = 0
+			else:
+				chord += sqrt((x[i]-x[i-1])**2+(z[i]-z[i-1])**2)
+			
 
 	def initializeWing(self):
 		dy = self.span/float(self.nj)
@@ -381,8 +410,8 @@ class VLM:
 			self.solve()
 			self.postProcess()
 			self.computeForcesAndMoment()
-			self.writeSpanload('data/Spanload_A%.2lf.dat' % alpha, alpha)
 			self.writeSolution('data/3D_sol_A%.2lf.dat' % alpha)
+			self.writeSpanload('data/Spanload_A%.2lf.dat' % alpha, alpha)
 
 			#print('Alpha= %.2lf CL= %.3lf CD= %.4lf CM= %.4lf' % (alpha, self.CL[-1], self.CD[-1], self.CM[-1]))
 
