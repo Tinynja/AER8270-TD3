@@ -35,12 +35,10 @@ def run_q1a(pool, queue):
 		writer = csv.writer(f, delimiter="\t", quoting=csv.QUOTE_NONNUMERIC)
 		writer.writerow(["AR", "CL_alpha", "CD"])
 		writer.writerow([q1a.AR, q1a.CL_alpha, q1a.CD[-1]])
-	# Print results
-	run_q1a_cache()
 	# Return results
 	return q1a
 
-def run_q1a_cache():
+def show_q1a():
 	q1a = []
 	# Read results from CSV
 	with open("data/q1a.csv", "r", newline="") as f:
@@ -53,7 +51,7 @@ def run_q1a_cache():
 	print("Trainee: %e" % q1a["CD"])
 
 #----Question 1 (b)----
-def vlm_enqueue(queue, sweep, ar):
+def q1b_enqueue(queue, sweep, ar):
 	print(f"Calculating (sweep={sweep}, AR={ar})...")
 	sys.stdout.flush()
 	vlm_prob = VLM(ni=5,
@@ -77,7 +75,7 @@ def run_q1b(pool, queue):
 	sweep = (0, 30, 45, 60)
 	AR = [1e-5] + list(np.arange(0.25,8,0.25))
 	# Enqueuing VLM results from multiprocessor pool for each combination of AR and sweep
-	vlm_partial = partial(vlm_enqueue, queue)
+	vlm_partial = partial(q1b_enqueue, queue)
 	pool.starmap(vlm_partial, product(q1b["sweep"], q1b["AR"]))
 	# Dequeue results
 	q1b = {}
@@ -95,12 +93,10 @@ def run_q1b(pool, queue):
 		for s in q1b:
 			for i in range(len(q1b[s]["AR"])):
 				writer.writerow(s, q1b[s]['AR'][i], q1b[s]['CL_alpha'][i])
-	# Print results
-	run_q1b_cache()
 	# Return results
 	return q1b
 
-def run_q1b_cache():
+def show_q1b():
 	# Read results from CSV
 	q1b = {}
 	with open("data/q1b.csv", "r", newline="") as f:
@@ -124,9 +120,9 @@ def run_q1b_cache():
 	# Generate plot
 	plt.figure()
 	for s in q1b:
-		plt.plot(q1b[s]['AR'], q1b[s]['CL_alpha'], label=u'Sweep %d\u00B0' % (s))
+		plt.plot(q1b[s]['AR'], q1b[s]['CL_alpha'], label=u'\u039B = %d\u00B0' % (s))
 	for s in q1b_ref:
-		plt.plot(q1b_ref[s]['AR'], q1b_ref[s]['CL_alpha'], '--', label=u'Sweep %d\u00B0 (ref)' % (s))
+		plt.plot(q1b_ref[s]['AR'], q1b_ref[s]['CL_alpha'], '--', label=u'\u039B %d\u00B0 (ref)' % (s))
 	plt.xlabel("Aspect ratio AR")
 	plt.ylabel("CL_alpha")
 	plt.title("Effet de l'aspect ratio et de la sweep sur la pente CL_alpha")
@@ -134,29 +130,28 @@ def run_q1b_cache():
 	plt.legend()
 	plt.savefig("figs/q1b.png") #save plot to file
 
+#----Question 1 (c)----
 
 #----Code Runner----
 if __name__ == "__main__":
-	run = {"q1a":1, "q1b":1}
+	questions = {"q1a":1, "q1b":1}
 	multiprocessing.freeze_support()
 	pool = multiprocessing.Pool()
 	queue = multiprocessing.Manager().Queue()
-	for q in run:
-		if run[q] == 1:
+	for q in questions:
+		if questions[q] > 0:
 			if len(q) == 3:
 				print("----Question " + q[1] + " (" + q[2] + ")----")
 			else:
 				print("------Question " + q[1] + "------")
-			try:
-				f = open("data/" + q + ".csv", "r", newline="")
-				f.close()
-				locals()["run_" + q + "_cache"]()
-			except FileNotFoundError:
+			if questions[q] == 2:
 				locals()["run_" + q](pool, queue)
-		elif run[q] == 2:
-			if len(q) == 3:
-				print("----Question " + q[1] + " (" + q[2] + ")----")
+				locals()["show_" + q]()
 			else:
-				print("------Question " + q[1] + "------")
-			locals()["run_" + q](pool, queue)
+				try:
+					with open("data/" + q + ".csv", "r", newline="") as f: pass
+					locals()["show_" + q]()
+				except FileNotFoundError:
+					locals()["run_" + q](pool, queue)
+					locals()["show_" + q]()
 	pool.terminate()
