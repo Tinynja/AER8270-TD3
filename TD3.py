@@ -53,9 +53,12 @@ def run_q1a_cache():
 	print("Trainee: %e" % q1a["CD"])
 
 
+ar = S
+S = b
+
 #----Question 1 (b)----
 def vlm_enqueue(queue, sweep, ar):
-	print(f"Calculating (sweep={sweep}, AR={ar*2})...")
+	print(f"Calculating (sweep={sweep}, AR={ar})...")
 	sys.stdout.flush()
 	vlm_prob = VLM(ni=5,
 				   nj=50,
@@ -63,9 +66,9 @@ def vlm_enqueue(queue, sweep, ar):
 				   chordTip=1.0,
 				   twistRoot=0.0,
 				   twistTip=0.0,
-				   span=ar,
+				   span=ar/2,
 				   sweep=sweep,
-				   Sref=ar,
+				   Sref=ar/2,
 				   referencePoint=[0.0,0.0,0.0],
 				   wingType=1,
 				   alphaRange = [0,10])
@@ -75,22 +78,19 @@ def vlm_enqueue(queue, sweep, ar):
 
 def run_q1b(pool, queue):
 	# Defining the aspect ratio and CL_alpha lists
-	q1b = {"AR":[1e-5]+list(np.arange(0.25,8,0.25)), "sweep":[0, 30, 45, 60], "halfAR": [], "probs":[], "CL_alpha":[]}
+	q1b = {"AR":[1e-5]+list(np.arange(0.25,8,0.25)), "sweep":[0, 30, 45, 60], "probs":[], "CL_alpha":[]}
 	# Hierarchy: probs/sweep/ar
 	for i in range(len(q1b["sweep"])):
 		q1b["probs"].append([0]*len(q1b["AR"]))
 		q1b["CL_alpha"].append([0]*len(q1b["AR"]))
-	# Divide AR by 2 to get the AR of a half wing
-	for i in range(len(q1b["AR"])):
-		q1b["halfAR"].append(q1b["AR"][i]/2)
 	# Enquing VLM results from multiprocessor pool for each combination of AR and sweep
 	vlm_partial = partial(vlm_enqueue, queue)
 	# Divide ar by 2 to get the result for a full wing
-	pool.starmap(vlm_partial, product(q1b["sweep"], q1b["halfAR"]))
+	pool.starmap(vlm_partial, product(q1b["sweep"], q1b["AR"]))
 	# Dequeue results
 	for i in range(queue.qsize()):
 		qi = queue.get()
-		q1b[qi[0]][q1b["sweep"].index(qi[1])][q1b["halfAR"].index(qi[2])] = qi[3]
+		q1b[qi[0]][q1b["sweep"].index(qi[1])][q1b["AR"].index(qi[2])] = qi[3]
 	# Save results as CSV
 	with open("data/q1b.csv", "w", newline="") as f:
 		writer = csv.writer(f, delimiter="\t", quoting=csv.QUOTE_NONNUMERIC)
@@ -131,7 +131,7 @@ def run_q1b_cache():
 if __name__ == "__main__":
 	run = {"q1a":1, "q1b":1}
 	multiprocessing.freeze_support()
-	pool = multiprocessing.Pool(processes=)
+	pool = multiprocessing.Pool()
 	queue = multiprocessing.Manager().Queue()
 	for q in run:
 		if run[q] == 1:
@@ -140,7 +140,7 @@ if __name__ == "__main__":
 			else:
 				print("------Question " + q[1] + "------")
 			try:
-				f = open("data/" + q + ".csv", "r", newline="")
+				open("data/" + q + ".csv", "r", newline="")
 				f.close()
 				locals()["run_" + q + "_cache"]()
 			except FileNotFoundError:
