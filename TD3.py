@@ -52,10 +52,6 @@ def run_q1a_cache():
 	print("Pente de portance-incidence: %f*pi" % (q1a["CL_alpha"]/pi))
 	print("Trainee: %e" % q1a["CD"])
 
-
-ar = S
-S = b
-
 #----Question 1 (b)----
 def vlm_enqueue(queue, sweep, ar):
 	print(f"Calculating (sweep={sweep}, AR={ar})...")
@@ -73,57 +69,69 @@ def vlm_enqueue(queue, sweep, ar):
 				   wingType=1,
 				   alphaRange = [0,10])
 	vlm_prob.run()
-	queue.put(["probs", sweep, ar, vlm_prob])
-	queue.put(["CL_alpha", sweep, ar, vlm_prob.CL_alpha])
+	queue.put({'queue_type':"prob", 'sweep':sweep, 'ar':ar, 'data':vlm_prob})
+	queue.put({'queue_type':"CL_alpha", 'sweep':sweep, 'ar':ar, 'data':vlm_prob.CL_alpha})
 
 def run_q1b(pool, queue):
 	# Defining the aspect ratio and CL_alpha lists
-	q1b = {"AR":[1e-5]+list(np.arange(0.25,8,0.25)), "sweep":[0, 30, 45, 60], "probs":[], "CL_alpha":[]}
-	# Hierarchy: probs/sweep/ar
-	for i in range(len(q1b["sweep"])):
-		q1b["probs"].append([0]*len(q1b["AR"]))
-		q1b["CL_alpha"].append([0]*len(q1b["AR"]))
-	# Enquing VLM results from multiprocessor pool for each combination of AR and sweep
+	sweep = (0, 30, 45, 60)
+	AR = [1e-5] + list(np.arange(0.25,8,0.25))
+	# Enqueuing VLM results from multiprocessor pool for each combination of AR and sweep
 	vlm_partial = partial(vlm_enqueue, queue)
-	# Divide ar by 2 to get the result for a full wing
 	pool.starmap(vlm_partial, product(q1b["sweep"], q1b["AR"]))
 	# Dequeue results
+	q1b = {}
 	for i in range(queue.qsize()):
 		qi = queue.get()
-		q1b[qi[0]][q1b["sweep"].index(qi[1])][q1b["AR"].index(qi[2])] = qi[3]
+		if qi['sweep'] not in q1b: q1b[qi['sweep']] = {}
+		if 'AR' not in q1b[qi['sweep']]: q1b[qi['sweep']]['AR'] = []
+		if qi['queue_type'] not in q1b[qi['sweep']]: q1b[qi['sweep']][qi['queue_type']] = []
+		q1b[qi['sweep']]['AR'].append(qi['AR'])
+		q1b[qi['sweep']][qi['queue_type']].append(qi['data'])
 	# Save results as CSV
 	with open("data/q1b.csv", "w", newline="") as f:
 		writer = csv.writer(f, delimiter="\t", quoting=csv.QUOTE_NONNUMERIC)
 		writer.writerow(["sweep", "AR", "CL_alpha"])
-		for s in range(len(q1b["sweep"])):
-			for a in range(len(q1b["AR"])):
-				writer.writerow([q1b["sweep"][s], q1b["AR"][a], q1b["CL_alpha"][s][a]])
+		for s in q1b:
+			for i in range(len(q1b[s]["AR"])):
+				writer.writerow(s, q1b[s]['AR'][i], q1b[s]['CL_alpha'][i])
 	# Print results
 	run_q1b_cache()
 	# Return results
 	return q1b
 
 def run_q1b_cache():
-	q1b = {"AR":[], "sweep":[], "CL_alpha":[]}
 	# Read results from CSV
+	q1b = {}
 	with open("data/q1b.csv", "r", newline="") as f:
 		reader = csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONNUMERIC)
 		for row in reader:
-			if len(q1b["sweep"]) == 0 or row["sweep"] > q1b["sweep"][-1]:
-				q1b["sweep"].append(row["sweep"])
-				q1b["CL_alpha"].append([])
-				i = -1
-			if len(q1b["AR"]) == 0 or row["AR"] > q1b["AR"][-1]:
-				q1b["AR"].append(row["AR"])
-			i += 1
-			q1b["CL_alpha"][-1].append(row["CL_alpha"])
+			if row['sweep'] not in q1b: q1b[row['sweep']] = {}
+			if 'AR' not in q1b[row['sweep']]: q1b[row['sweep']]['AR'] = []
+			if 'CL_alpha' not in q1b[row['sweep']]: q1b[row['sweep']]['CL_alpha'] = []
+			q1b[row['sweep']]['AR'].append(row['AR'])
+			q1b[row['sweep']]['CL_alpha'].append(row['CL_alpha'])
+	# Read reference values from CSV
+	q1b_ref = {}
+	with open("data/q1b_ref.csv", "r", newline="") as f:
+		reader = csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONNUMERIC)
+		for row in reader:
+			if row['sweep'] not in q1b_ref: q1b_ref[row['sweep']] = {}
+			if 'AR' not in q1b_ref[row['sweep']]: q1b_ref[row['sweep']]['AR'] = []
+			if 'CL_alpha' not in q1b_ref[row['sweep']]: q1b_ref[row['sweep']]['CL_alpha'] = []
+			q1b_ref[row['sweep']]['AR'].append(row['AR'])
+			q1b_ref[row['sweep']]['CL_alpha'].append(row['CL_alpha'])
 	# Generate plot
-	for i in range(len(q1b["sweep"])):
-		plt.plot(q1b["AR"], q1b["CL_alpha"][i])
+	plt.figure()
+	for s in q1b:
+		plt.plot(q1b[s]['AR'], q1b[s]['CL_alpha'], label=u'Sweep %d\u00B0' % (s))
+	for s in q1b_ref:
+		plt.plot(q1b_ref[s]['AR'], q1b_ref[s]['CL_alpha'], '--', label=u'Sweep %d\u00B0 (ref)' % (s))
 	plt.xlabel("Aspect ratio AR")
 	plt.ylabel("CL_alpha")
 	plt.title("Effet de l'aspect ratio et de la sweep sur la pente CL_alpha")
 	plt.grid()
+	plt.legend()
 	plt.savefig("figs/q1b.png") #save plot to file
 
 
@@ -140,7 +148,7 @@ if __name__ == "__main__":
 			else:
 				print("------Question " + q[1] + "------")
 			try:
-				open("data/" + q + ".csv", "r", newline="")
+				f = open("data/" + q + ".csv", "r", newline="")
 				f.close()
 				locals()["run_" + q + "_cache"]()
 			except FileNotFoundError:
