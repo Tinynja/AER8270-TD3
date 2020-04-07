@@ -2,6 +2,7 @@
 from math import *
 import multiprocessing
 import csv
+from os import listdir
 from functools import partial
 from itertools import product
 
@@ -13,12 +14,12 @@ import matplotlib.pyplot as plt
 from libraries.vlm import *
 
 
-def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, type=1):
-	print(f'Calculating (taper_ratio={taper_ratio}, alphaRange={alphaRange}, sweep={sweep}, AR={AR})...', flush=True)
-	if type in (1,2):
+def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, wingtype=1):
+	print(f'Calculating (taper_ratio={taper_ratio}, alphaRange={alphaRange}, sweep={sweep}, AR={AR}, wingtype={wingtype})...', flush=True)
+	if wingtype in (1,2):
 		span = AR*(1+taper_ratio)/4
 		Sref = AR*(1+taper_ratio)**2/8
-	elif type == 3:
+	elif wingtype == 3:
 		span = AR*pi/8
 		Sref = AR*pi**2/32
 	vlm_prob = VLM(ni=5,
@@ -31,20 +32,21 @@ def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, type=1):
 				   sweep=sweep,
 				   Sref=Sref,
 				   referencePoint=[0.0,0.0,0.0],
-				   wingType=1,
+				   wingType=wingtype,
 				   alphaRange = alphaRange)
 	vlm_prob.run()
-	queue.put({'taper_ratio':taper_ratio, 'alphaRange':alphaRange, 'sweep':sweep, 'AR':AR, 'prob':vlm_prob})
+	queue.put({'taper_ratio':taper_ratio, 'alphaRange':alphaRange, 'sweep':sweep, 'AR':AR, 'wingtype':wingtype, 'prob':vlm_prob})
 
-def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR):
+def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, wingtype=1):
 	if not hasattr(taper_ratio, '__iter__'): taper_ratio = (taper_ratio,)
 	if not hasattr(alphaRange, '__iter__'): alphaRange = ((alphaRange,),)
 	else: alphaRange = [a if hasattr(a, '__iter__') else (a,) for a in alphaRange]
 	if not hasattr(sweep, '__iter__'): sweep = (sweep,)
 	if not hasattr(AR, '__iter__'): AR = (AR,)
+	if not hasattr(wingtype, '__iter__'): wingtype = (wingtype,)
 	# Enqueuing VLM results from multiprocessor pool for each combination of AR and sweep
 	vlm_partial = partial(vlm_enqueue, queue)
-	pool.starmap(vlm_partial, product(taper_ratio, alphaRange, sweep, AR))
+	pool.starmap(vlm_partial, product(taper_ratio, alphaRange, sweep, AR, wingtype))
 	# Dequeue results
 	full = []
 	for i in range(queue.qsize()):
@@ -54,6 +56,7 @@ def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR):
 			'alphaRange': qi['alphaRange'],
 			'sweep': qi['sweep'],
 			'AR': qi['AR'],
+			'wingtype': qi['wingtype'],
 			'prob': qi['prob']
 		})
 	# Return results
@@ -214,9 +217,50 @@ def show_q1d():
 	plt.ylim(0, 1.5)
 	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
 	plt.ylabel('cl/CL')
-	plt.title('Effet du sweep sur la distribution de portance')
+	plt.title('Effet du taper ratio sur la distribution de portance')
 	plt.grid()
 	plt.legend()
+	plt.savefig('figs/q1d.png') #save plot to file
+
+
+#----Question 1 (e)----
+def run_q1e(pool, queue):
+	taper_ratio = 1
+	alpha = ((0,10),)
+	sweep = 0
+	AR = 1
+	# Run VLM
+	result = full_run(pool, queue, taper_ratio, alpha, sweep, AR, wingtype=3)
+	# Save results as CSV
+	with open('data/q1e-i.csv', 'w', newline='') as f:
+		writer = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
+		writer.writerow(['AR', 'CL', 'CL_alpha'])
+		writer.writerow([result[0]['AR'], result[0]['prob'].CL[-1], result[0]['prob'].CL_alpha])
+	save_data(result, 'q1e-ii', '2y/b-cl/CL')
+	# Return result
+	return result
+
+def show_q1e():
+	# Read results from CSV
+	with open('data/q1e-i.csv', 'r', newline='') as f:
+		reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
+		for row in reader:
+			result_i = row
+	# Read results from CSV
+	result_ii = read_data('q1e-ii', '2y/b-cl/CL')[0]
+	# Print results
+	print('Aspect ratio (AR): %g' % result_i['AR'])
+	print('Pente de portance-incidence: %f*pi/(1+2/AR)' % (result_i['CL_alpha']*(1+2/result_i['AR'])/pi))
+	print('Coefficient d\'Oswald: %f' % (result_i['CL']**2/(pi*exp(1)*result_i['AR'])))
+	# Generate plot
+	plt.figure()
+	for r in result_ii:
+		plt.plot(r['2y/b'], r['cl/CL'])
+	plt.ylim(0, 1.5)
+	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
+	plt.ylabel('cl/CL')
+	plt.title('Effet du taper ratio sur la distribution de portance')
+	plt.grid()
 	plt.savefig('figs/q1d.png') #save plot to file
 
 
@@ -254,7 +298,8 @@ def show_q0():
 
 #----Code Runner----
 if __name__ == '__main__':
-	questions = {'q0':0, 'q1a':2, 'q1b':1, 'q1c':1, 'q1d':1}
+	questions = {'q0':0, 'q1a':1, 'q1b':1, 'q1c':1, 'q1d':1, 'q1e':1}
+	datafiles = listdir('data')
 	multiprocessing.freeze_support()
 	pool = multiprocessing.Pool()
 	queue = multiprocessing.Manager().Queue()
