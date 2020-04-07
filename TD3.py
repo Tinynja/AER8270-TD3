@@ -1,7 +1,6 @@
 # Standard libs
 from math import *
 import multiprocessing
-import sys
 import csv
 from functools import partial
 from itertools import product
@@ -14,18 +13,23 @@ import matplotlib.pyplot as plt
 from libraries.vlm import *
 
 
-def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR):
-	print(f'Calculating (taper_ratio={taper_ratio}, alphaRange={alphaRange}, sweep={sweep}, AR={AR})...')
-	sys.stdout.flush()
+def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, type=1):
+	print(f'Calculating (taper_ratio={taper_ratio}, alphaRange={alphaRange}, sweep={sweep}, AR={AR})...', flush=True)
+	if type in (1,2):
+		span = AR*(1+taper_ratio)/4
+		Sref = AR*(1+taper_ratio)**2/8
+	elif type == 3:
+		span = AR*pi/8
+		Sref = AR*pi**2/32
 	vlm_prob = VLM(ni=5,
 				   nj=50,
 				   chordRoot=1.0,
 				   chordTip=1.0*taper_ratio,
 				   twistRoot=0.0,
 				   twistTip=0.0,
-				   span=AR/2,
+				   span=span,
 				   sweep=sweep,
-				   Sref=AR/2,
+				   Sref=Sref,
 				   referencePoint=[0.0,0.0,0.0],
 				   wingType=1,
 				   alphaRange = alphaRange)
@@ -70,9 +74,9 @@ def save_data(results, filename, datatype):
 				for i,alpha in enumerate(r['alphaRange']):
 					params = [r['taper_ratio'], alpha, r['sweep'], r['AR']]
 					for j,y in enumerate(r['prob'].spanLoad[alpha]['y']):
-						writer.writerow(params + [y/r['prob'].span, r['prob'].spanLoad[alpha]['cl_sec'][j]])#/r['prob'].spanLoad[alpha]['localChord'][j]])
+						writer.writerow(params + [y/r['prob'].span, r['prob'].spanLoad[alpha]['cl_sec'][j]])
 
-def read_data(filename, datatype):
+def read_data(filename, datatype, sort_by=None):
 	# Read results from CSV
 	results = []
 	with open(f'data/{filename}.csv', 'r', newline='') as f:
@@ -88,43 +92,34 @@ def read_data(filename, datatype):
 					results.append({'taper_ratio':row['taper_ratio'], 'alphaRange':row['alphaRange'], 'sweep':row['sweep'], 'AR':row['AR'], '2y/b':[], 'cl/CL':[]})
 				results[-1]['2y/b'].append(row['2y/b'])
 				results[-1]['cl/CL'].append(row['cl/CL'])
+	if sort_by is not None:
+		return sorted(results, key=lambda k: k[sort_by])
 	return results
 
 
 #----Question 1 (a)----
 def run_q1a(pool, queue):
 	# Run VLM
-	q1a = VLM(ni=5,
-			  nj=50,
-			  chordRoot=1,
-			  chordTip=1,
-			  twistRoot=0.0,
-			  twistTip=0.0,
-			  span=1e5,
-			  sweep=0.0,
-			  Sref =1e5,
-			  referencePoint=[0.0,0.0,0.0],
-			  wingType=1,
-			  alphaRange = [0,10])
-	q1a.run()
+	result = full_run(pool, queue, 1, [[0, 10],], 0, 1e10)[0]['prob']
 	# Save results as CSV
 	with open('data/q1a.csv', 'w', newline='') as f:
 		writer = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
 		writer.writerow(['AR', 'CL_alpha', 'CD'])
-		writer.writerow([q1a.AR, q1a.CL_alpha, q1a.CD[-1]])
-	print(q1a.localChord)
+		writer.writerow([result.AR, result.CL_alpha, result.CD[-1]])
+	# Return result
+	return result
 
 def show_q1a():
-	q1a = []
+	result = []
 	# Read results from CSV
 	with open('data/q1a.csv', 'r', newline='') as f:
 		reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
 		for row in reader:
-			q1a = row
+			result = row
 	# Print results
-	print('Aspect ratio: %g' % q1a['AR'])
-	print('Pente de portance-incidence: %f*pi' % (q1a['CL_alpha']/pi))
-	print('Trainee: %e' % q1a['CD'])
+	print('Aspect ratio: %g' % result['AR'])
+	print('Pente de portance-incidence: %f*pi' % (result['CL_alpha']/pi))
+	print('Trainee: %e' % result['CD'])
 
 
 #----Question 1 (b)----
@@ -135,33 +130,23 @@ def run_q1b(pool, queue):
 	sweep = (0, 30, 45, 60)
 	AR = [1e-5] + list(np.arange(0.25,8,0.25))
 	# Enqueuing VLM results from multiprocessor pool for each combination of AR and sweep
-	probs = full_run(pool, queue, taper_ratio, alpharange, sweep, AR)
+	results = full_run(pool, queue, taper_ratio, alpharange, sweep, AR)
 	# Save results as CSV
-	save_data(probs, 'q1b', 'AR-CL_alpha')
+	save_data(results, 'q1b', 'AR-CL_alpha')
+	# Return result
+	return results
 
 def show_q1b():
 	# Read results from CSV
-	q1b = {}
-	with open('data/q1b.csv', 'r', newline='') as f:
-		reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
-		for row in reader:
-			if row['sweep'] not in q1b: q1b[row['sweep']] = {'AR':[], 'CL_alpha':[]}
-			q1b[row['sweep']]['AR'].append(row['AR'])
-			q1b[row['sweep']]['CL_alpha'].append(row['CL_alpha'])
+	results = read_data('q1b', 'AR-CL_alpha', sort_by='sweep')
 	# Read reference values from CSV
-	q1b_ref = {}
-	with open('data/q1b_ref.csv', 'r', newline='') as f:
-		reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
-		for row in reader:
-			if row['sweep'] not in q1b_ref: q1b_ref[row['sweep']] = {'AR':[], 'CL_alpha':[]}
-			q1b_ref[row['sweep']]['AR'].append(row['AR'])
-			q1b_ref[row['sweep']]['CL_alpha'].append(row['CL_alpha'])
+	results_ref = read_data('q1b_ref', 'AR-CL_alpha', sort_by='sweep')
 	# Generate plot
 	plt.figure()
-	for s in sorted(q1b):
-		plt.plot(q1b[s]['AR'], q1b[s]['CL_alpha'], label=u'\u039B = %d\u00B0' % (s))
-	for s in sorted(q1b_ref):
-		plt.plot(q1b_ref[s]['AR'], q1b_ref[s]['CL_alpha'], '--', label=u'\u039B %d\u00B0 (ref)' % (s))
+	for r in results:
+		plt.plot(r['AR'], r['CL_alpha'], label=u'\u039B = %d\u00B0' % (r['sweep']))
+	for r in results_ref:
+		plt.plot(r['AR'], r['CL_alpha'], '--', label=u'\u039B %d\u00B0 (ref)' % (r['sweep']))
 	plt.xlabel('Aspect ratio AR')
 	plt.ylabel('CL_alpha')
 	plt.title('Effet de l\'aspect ratio et de la sweep sur la pente CL_alpha')
@@ -185,9 +170,9 @@ def run_q1c(pool, queue):
 
 def show_q1c():
 	# Read results from CSV
-	results = read_data('q1c', '2y/b-cl/CL')
+	results = read_data('q1c', '2y/b-cl/CL', sort_by='sweep')
 	# Read reference values from CSV
-	results_ref = read_data('q1c_ref', '2y/b-cl/CL')
+	results_ref = read_data('q1c_ref', '2y/b-cl/CL', sort_by='sweep')
 	# Generate plot
 	plt.figure()
 	for r in results:
@@ -217,9 +202,9 @@ def run_q1d(pool, queue):
 
 def show_q1d():
 	# Read results from CSV
-	results = read_data('q1d', '2y/b-cl/CL')
+	results = read_data('q1d', '2y/b-cl/CL', sort_by='taper_ratio')
 	# Read reference values from CSV
-	results_ref = read_data('q1d_ref', '2y/b-cl/CL')
+	results_ref = read_data('q1d_ref', '2y/b-cl/CL', sort_by='taper_ratio')
 	# Generate plot
 	plt.figure()
 	for r in results:
@@ -266,9 +251,10 @@ def show_q0():
 	plt.legend()
 	plt.show()
 
+
 #----Code Runner----
 if __name__ == '__main__':
-	questions = {'q0':0, 'q1a':1, 'q1b':1, 'q1c':1, 'q1d':1}
+	questions = {'q0':0, 'q1a':2, 'q1b':1, 'q1c':1, 'q1d':1}
 	multiprocessing.freeze_support()
 	pool = multiprocessing.Pool()
 	queue = multiprocessing.Manager().Queue()

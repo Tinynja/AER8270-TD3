@@ -160,7 +160,7 @@ class VLM:
 			ypos[j] = self.panels[self.ni * j].forceActingPoint()[1]
 			cl_sec[j] = cl
 
-		self.spanLoad[alpha] = {'y': [], 'cl_sec': [], 'localChord': []}
+		self.spanLoad[alpha] = {'y': [], 'cl_sec': []}
 
 		fid = open(outputfile, 'w')
 		fid.write("VARIABLES= \"Y\",\"Cl\"\n")
@@ -169,7 +169,6 @@ class VLM:
 			fid.write("%.4lf %.4lf\n" % (y, cl_sec[i]))
 			self.spanLoad[alpha]['y'].append(y)
 			self.spanLoad[alpha]['cl_sec'].append(cl_sec[i])
-			self.spanLoad[alpha]['localChord'].append((self.localChord['chord'][i]+self.localChord['chord'][i+1])/2)
 
 		fid.close()
         
