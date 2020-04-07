@@ -228,7 +228,7 @@ def run_q1e(pool, queue):
 	taper_ratio = 1
 	alpha = ((0,10),)
 	sweep = 0
-	AR = 1
+	AR = 13.4
 	# Run VLM
 	result = full_run(pool, queue, taper_ratio, alpha, sweep, AR, wingtype=3)
 	# Save results as CSV
@@ -297,7 +297,7 @@ def show_q0():
 
 #----Code Runner----
 if __name__ == '__main__':
-	questions = {'q0':0, 'q1a':1, 'q1b':1, 'q1c':1, 'q1d':1, 'q1e':1}
+	questions = {'q0':0, 'q1a':1, 'q1b':1, 'q1c':1, 'q1d':1, 'q1e':2}
 	datafiles = listdir('data')
 	multiprocessing.freeze_support()
 	pool = multiprocessing.Pool()
