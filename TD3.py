@@ -2,6 +2,7 @@
 from math import *
 import multiprocessing
 import csv
+import re
 from os import listdir
 from functools import partial
 from itertools import product
@@ -74,10 +75,9 @@ def save_data(results, filename, datatype):
 			if datatype == 'AR-CL_alpha':
 				writer.writerow([r['taper_ratio'], r['alphaRange'], r['sweep'], r['AR'], r['prob'].CL_alpha,])
 			elif datatype == '2y/b-cl/CL':
-				for i,alpha in enumerate(r['alphaRange']):
-					params = [r['taper_ratio'], alpha, r['sweep'], r['AR']]
-					for j,y in enumerate(r['prob'].spanLoad[alpha]['y']):
-						writer.writerow(params + [y/r['prob'].span, r['prob'].spanLoad[alpha]['cl_sec'][j]])
+				params = [r['taper_ratio'], r['alphaRange'][-1], r['sweep'], r['AR']]
+				for j,y in enumerate(r['prob'].spanLoad[r['alphaRange'][-1]]['y']):
+					writer.writerow(params + [y/r['prob'].span, r['prob'].spanLoad[r['alphaRange'][-1]]['cl_sec'][j]/r['prob'].CL[-1]])
 
 def read_data(filename, datatype, sort_by=None):
 	# Read results from CSV
@@ -247,7 +247,7 @@ def show_q1e():
 		for row in reader:
 			result_i = row
 	# Read results from CSV
-	result_ii = read_data('q1e-ii', '2y/b-cl/CL')[0]
+	result_ii = read_data('q1e-ii', '2y/b-cl/CL')
 	# Print results
 	print('Aspect ratio (AR): %g' % result_i['AR'])
 	print('Pente de portance-incidence: %f*pi/(1+2/AR)' % (result_i['CL_alpha']*(1+2/result_i['AR'])/pi))
@@ -256,12 +256,11 @@ def show_q1e():
 	plt.figure()
 	for r in result_ii:
 		plt.plot(r['2y/b'], r['cl/CL'])
-	plt.ylim(0, 1.5)
 	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
 	plt.ylabel('cl/CL')
 	plt.title('Effet du taper ratio sur la distribution de portance')
 	plt.grid()
-	plt.savefig('figs/q1d.png') #save plot to file
+	plt.savefig('figs/q1e-ii.png') #save plot to file
 
 
 #-------Tests-------
@@ -313,10 +312,9 @@ if __name__ == '__main__':
 				locals()['run_' + q](pool, queue)
 				locals()['show_' + q]()
 			else:
-				try:
-					with open('data/' + q + '.csv', 'r', newline='') as f: pass
+				if any(re.match(f'{q}-?i*\.csv',f_name) for f_name in datafiles):
 					locals()['show_' + q]()
-				except FileNotFoundError:
+				else:
 					locals()['run_' + q](pool, queue)
 					locals()['show_' + q]()
 	pool.terminate()
