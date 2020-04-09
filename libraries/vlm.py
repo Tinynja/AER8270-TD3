@@ -168,7 +168,7 @@ class VLM:
 		for i in range(1, len(An)):
 			delta += (2*i+1)*(An[i]/An[0])**2.0
 		
-		CL= pi*An[0]*self.AR
+		CL = pi*An[0]*self.AR
 		self.e.append(1.0/(1.0+delta))
 		self.CDi.append((CL**2)/(self.e[-1]*pi*self.AR))
 

@@ -307,7 +307,6 @@ def show_q1e():
 	print('Aspect ratio (AR): %g' % result_i['AR'])
 	print('Pente de portance-incidence: %f*pi/(1+2/AR)' % (result_i['CL_alpha']*(1+2/result_i['AR'])/pi))
 	print('Coefficient d\'Oswald: %f' % (result_i['CL']**2/(pi*result_i['CD']*result_i['AR'])))
-	#e = CL[1]**2 / (math.pi * CD[1] * AR)
 	# Generate plot
 	plt.figure()
 	for r in result_ii:
