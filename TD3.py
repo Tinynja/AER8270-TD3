@@ -16,7 +16,7 @@ from scipy.interpolate import interp1d
 from libraries.vlm import *
 
 
-def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(0,0), wingtype=1, lp=False):
+def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(0,0), wingtype=1):
 	if span is not None:
 		if wingtype in (1,2):
 			AR = 4*span/(1+taper_ratio)
@@ -40,13 +40,12 @@ def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(0,0
 				   Sref=Sref,
 				   referencePoint=[0.0,0.0,0.0],
 				   wingType=wingtype,
-				   alphaRange = alphaRange,
-					 lp=lp)
+				   alphaRange = alphaRange)
 	vlm_prob.run()
 	queue.put({'taper_ratio':taper_ratio, 'alphaRange':alphaRange, 'sweep':sweep, 'AR':AR,
 						 'span':span, 'twist':twist, 'wingtype':wingtype, 'prob':vlm_prob})
 
-def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(0,0), wingtype=1, lp=False, asis=False):
+def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(0,0), wingtype=1, asis=False):
 	if not hasattr(taper_ratio, '__iter__'): taper_ratio = (taper_ratio,)
 	if not hasattr(alphaRange, '__iter__'): alphaRange = ((alphaRange,),)
 	else: alphaRange = [a if hasattr(a, '__iter__') else (a,) for a in alphaRange]
@@ -57,11 +56,10 @@ def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(
 	if not hasattr(twist[0], '__iter__'):
 		twist = (twist[0:2],)
 	if not hasattr(wingtype, '__iter__'): wingtype = (wingtype,)
-	if not hasattr(lp, '__iter__'): lp = (lp,)
 	# Enqueuing VLM results from multiprocessor pool for each combination of AR and sweep
 	params = []
 	if asis:
-		args = ['taper_ratio', 'alphaRange', 'sweep', 'AR', 'span', 'twist', 'wingtype', 'lp']
+		args = ['taper_ratio', 'alphaRange', 'sweep', 'AR', 'span', 'twist', 'wingtype']
 		new_args = []
 		locals_ = locals()
 		repl = max([len(locals_[a]) for a in args])
@@ -74,7 +72,7 @@ def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(
 				new_args.append(locals()[a])
 		params = zip(*new_args)
 	else:
-		params = product(taper_ratio, alphaRange, sweep, AR, span, twist, wingtype, lp)
+		params = product(taper_ratio, alphaRange, sweep, AR, span, twist, wingtype)
 	vlm_partial = partial(vlm_enqueue, queue)
 	pool.starmap(vlm_partial, params)
 	# Dequeue results
@@ -85,7 +83,7 @@ def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(
 	# Return results
 	return full
 
-def save_data(results, filename, datatype):
+def save_data(results, filename, datatype, sort_by=None):
 	with open(f'data/{filename}.csv', 'w', newline='') as f:
 		writer = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
 		row = ['taper_ratio', 'alphaRange', 'sweep', 'twist', 'AR']
@@ -97,6 +95,8 @@ def save_data(results, filename, datatype):
 			writer.writerow(row + ['y/b', 'cl/CL'])
 		elif datatype == 'y/b-clclocal/cavg':
 			writer.writerow(row + ['y/b', 'clclocal/cavg'])
+		if sort_by is not None:
+			results = sorted(results, key=lambda k: k[sort_by])
 		for r in results:
 			if datatype == 'alpha-CL':
 				for i,alpha in enumerate(r['alphaRange']):
@@ -140,6 +140,9 @@ def read_data(filename, datatype, sort_by=None):
 					results.append({'taper_ratio':row['taper_ratio'], 'alphaRange':row['alphaRange'], 'sweep':row['sweep'], 'twist':row['twist'], 'AR':row['AR'], 'y/b':[], 'clclocal/cavg':[]})
 				results[-1]['y/b'].append(row['y/b'])
 				results[-1]['clclocal/cavg'].append(row['clclocal/cavg'])
+	if datatype == 'AR-CL_alpha':
+		for i,r in enumerate(results):
+			results[i]['AR'], results[i]['CL_alpha'] = (list(t) for t in zip(*sorted(zip(r['AR'], r['CL_alpha']))))
 	if sort_by is not None:
 		return sorted(results, key=lambda k: k[sort_by])
 	return results
@@ -180,7 +183,7 @@ def run_q1b(pool, queue):
 	# Enqueuing VLM results from multiprocessor pool for each combination of AR and sweep
 	results = full_run(pool, queue, taper_ratio, alpharange, sweep, AR)
 	# Save results as CSV
-	save_data(results, 'q1b', 'AR-CL_alpha')
+	save_data(results, 'q1b', 'AR-CL_alpha', sort_by='sweep')
 	# Return result
 	return results
 
@@ -269,14 +272,14 @@ def show_q1d():
 
 
 #----Question 1 (e)----
-def run_q1e(pool, queue, lp=False):
+def run_q1e(pool, queue):
 	taper_ratio = 1
 	alpha = ((0,10),)
 	sweep = 0
 	AR = 0
 	span = 20
 	# Run VLM
-	result = full_run(pool, queue, taper_ratio, alpha, sweep, AR, span, wingtype=3, lp=True)
+	result = full_run(pool, queue, taper_ratio, alpha, sweep, AR, span, wingtype=3)
 	# Save results as CSV
 	with open('data/q1e-i.csv', 'w', newline='') as f:
 		writer = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
@@ -314,7 +317,7 @@ def show_q1e():
 def run_q2(pool, queue):
 	result = run_q1e(pool, queue)
 	# Save results as CSV
-	with open('data/q3-i.csv', 'w', newline='') as f:
+	with open('data/q2.csv', 'w', newline='') as f:
 		writer = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
 		writer.writerow(['twist', 'CDi', 'e'])
 		for r in result:
@@ -322,15 +325,15 @@ def run_q2(pool, queue):
 	# Return results
 	return result
 
-def show_q2(pool,queue):
+def show_q2():
 	# Read results from CSV
-	with open('data/q3-i.csv', 'r', newline='') as f:
+	with open('data/q2.csv', 'r', newline='') as f:
 		reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
 		for row in reader:
 			result = row
 	# Print results
-	print(f"Coefficient de trainée induite: {r['CDi']}")
-	print(f"Coefficient d'Oswald: {r['e']}")
+	print(f"Coefficient de trainée induite: {result['CDi']}")
+	print(f"Coefficient d'Oswald: {result['e']}")
 
 
 #------Question 3------
@@ -348,7 +351,7 @@ def run_q3(pool, queue):
 	newalphaRange = []
 	for i,CLi in enumerate(CL):
 		newalphaRange.append(interp1d(sorted(CLi), alphaRange)(0.5)+0)
-	results = full_run(pool, queue, taper_ratio, newalphaRange, sweep, AR, span, twist, asis=True, lp=True)
+	results = full_run(pool, queue, taper_ratio, newalphaRange, sweep, AR, span, twist, asis=True)
 	# Save results as CSV
 	with open('data/q3-i.csv', 'w', newline='') as f:
 		writer = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
@@ -399,10 +402,10 @@ def show_q0():
 
 #----Code Runner----
 if __name__ == '__main__':
-	questions = {'q0':0, 'q1a':2, 'q1b':0, 'q1c':0, 'q1d':0, 'q1e':0, 'q3':0}
+	questions = {'q0':0, 'q1a':1, 'q1b':2, 'q1c':1, 'q1d':1, 'q1e':1, 'q2':1, 'q3':1}
 	datafiles = listdir('data')
 	multiprocessing.freeze_support()
-	pool = multiprocessing.Pool()
+	pool = multiprocessing.Pool(processes=24)
 	queue = multiprocessing.Manager().Queue()
 	for q in questions:
 		if questions[q] > 0:
