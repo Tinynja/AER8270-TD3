@@ -262,7 +262,6 @@ def show_q1d():
 	plt.figure()
 	for r in results:
 		if r['taper_ratio'] == 0:
-			print(r['cl/CL'])
 			plt.plot(r['y/b'][0:-7], r['cl/CL'][0:-7], label=u'\u03BB = %.2f' % (r['taper_ratio']))
 		else:
 			plt.plot(r['y/b'], r['cl/CL'], label=u'\u03BB = %.2f' % (r['taper_ratio']))
