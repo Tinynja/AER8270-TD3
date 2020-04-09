@@ -417,7 +417,8 @@ class VLM:
 			self.computeForcesAndMoment()
 			self.writeSolution('data/3D_sol_A%.2lf.dat' % alpha)
 			self.writeSpanload('data/Spanload_A%.2lf.dat' % alpha)
-			self.lifting_line()
+			if self.wingType == 3:
+				self.lifting_line()
 
 			#print('Alpha= %.2lf CL= %.3lf CD= %.4lf CM= %.4lf' % (alpha, self.CL[-1], self.CD[-1], self.CM[-1]))
 
