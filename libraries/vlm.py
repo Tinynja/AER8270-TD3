@@ -11,9 +11,10 @@ from libraries.Vector3 import Vector3
 from libraries.vortexRing import vortexRing as panel
 
 class VLM:
-	def __init__(self, ni=5, nj=10, chordRoot=1.0, chordTip=1.0, twistRoot=0.0, twistTip=0.0, span=5.0, sweep=30.0, Sref = 1.0, referencePoint=[0.0,0.0,0.0], wingType=1, alphaRange = [0.0]):
+	def __init__(self, ni=5, nj=10, chordRoot=1.0, chordTip=1.0, twistRoot=0.0, twistTip=0.0, span=5.0, sweep=30.0, Sref = 1.0, referencePoint=[0.0,0.0,0.0], wingType=1, alphaRange = [0.0], lp=False):
 
 		self.size = ni * nj
+		self.lp = lp
 
 		self.A   = np.zeros((self.size,self.size))
 		self.rhs = np.zeros(self.size)
@@ -47,6 +48,7 @@ class VLM:
 		self.CL = []
 		self.CD = []
 		self.CDi = []
+		self.e = []
 		self.CM = []
 
 		self.clocal = np.zeros(self.nj)
@@ -168,8 +170,8 @@ class VLM:
 			delta += (2*i+1)*(An[i]/An[0])**2.0
 		
 		CL= pi*An[0]*self.AR
-		self.e = 1.0/(1.0+delta)
-		self.CDi.append((CL**2)/(self.e*pi*self.AR))
+		self.e.append(1.0/(1.0+delta))
+		self.CDi.append((CL**2)/(self.e[-1]*pi*self.AR))
 
 
 	def writeSpanload(self, outputfile):
@@ -417,8 +419,7 @@ class VLM:
 			self.computeForcesAndMoment()
 			self.writeSolution('data/3D_sol_A%.2lf.dat' % alpha)
 			self.writeSpanload('data/Spanload_A%.2lf.dat' % alpha)
-			if self.wingType == 3:
-				self.lifting_line()
+			if self.lp: self.lifting_line()
 
 			#print('Alpha= %.2lf CL= %.3lf CD= %.4lf CM= %.4lf' % (alpha, self.CL[-1], self.CD[-1], self.CM[-1]))
 
