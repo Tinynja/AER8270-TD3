@@ -197,13 +197,14 @@ def show_q1b():
 	for r in results:
 		plt.plot(r['AR'], r['CL_alpha'], label=u'\u039B = %d\u00B0' % (r['sweep']))
 	for r in results_ref:
-		plt.plot(r['AR'], r['CL_alpha'], '--', label=u'\u039B %d\u00B0 (ref)' % (r['sweep']))
+		plt.plot(r['AR'], r['CL_alpha'], '--', label=u'\u039B = %d\u00B0 (ref)' % (r['sweep']))
 	plt.xlabel('Aspect ratio AR')
 	plt.ylabel('CL_alpha')
-	plt.title('Effet de l\'aspect ratio et de la sweep sur la pente CL_alpha')
+	plt.title('Effet de l\'allongement et de la flèche sur CL_alpha')
 	plt.grid()
-	plt.legend()
+	plt.legend(loc=4)
 	plt.savefig('figs/q1b.png') #save plot to file
+	print("Plot saved in figs folder.")
 
 
 #----Question 1 (c)----
@@ -213,7 +214,7 @@ def run_q1c(pool, queue):
 	sweep = (0, 45, 135)
 	AR = 4
 	# Running the VLMs
-	results = full_run(pool, queue, taper_ratio, alpha, sweep, AR)
+	results = full_run(pool, queue, taper_ratio, alpha, sweep, AR, wingtype=2)
 	# Save results as CSV
 	save_data(results, 'q1c', 'y/b-cl/CL')
 	# Return results
@@ -227,15 +228,16 @@ def show_q1c():
 	# Generate plot
 	plt.figure()
 	for r in results:
-		plt.plot(r['y/b'], r['cl/CL'], label=u'\u039B = %f\u00B0' % (r['sweep']))
+		plt.plot(r['y/b'], r['cl/CL'], label=u'\u039B = %d\u00B0' % (r['sweep']))
 	for r in results_ref:
 		plt.plot(r['y/b'], r['cl/CL'], '--', label=u'\u039B = %d\u00B0 (ref)' % (r['sweep']))
-	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
+	plt.xlabel('Fraction de demi-envergure (2y/b)')
 	plt.ylabel('cl/CL')
-	plt.title('Effet du sweep sur la distribution de portance')
+	plt.title('Effet de la flèche sur la distribution de portance')
 	plt.grid()
 	plt.legend()
 	plt.savefig('figs/q1c.png') #save plot to file
+	print("Plot saved in figs folder.")
 
 
 #----Question 1 (d)----
@@ -245,7 +247,7 @@ def run_q1d(pool, queue):
 	sweep = 0
 	AR = 7.28
 	# Running the VLMs
-	results = full_run(pool, queue, taper_ratio, alpha, sweep, AR)
+	results = full_run(pool, queue, taper_ratio, alpha, sweep, AR, wingtype=2)
 	# Save results as CSV
 	save_data(results, 'q1d', 'y/b-cl/CL')
 	# Return results
@@ -259,16 +261,21 @@ def show_q1d():
 	# Generate plot
 	plt.figure()
 	for r in results:
-		plt.plot(r['y/b'], r['cl/CL'], label=u'\u03BB = %.2f' % (r['taper_ratio']))
+		if r['taper_ratio'] == 0:
+			print(r['cl/CL'])
+			plt.plot(r['y/b'][0:-7], r['cl/CL'][0:-7], label=u'\u03BB = %.2f' % (r['taper_ratio']))
+		else:
+			plt.plot(r['y/b'], r['cl/CL'], label=u'\u03BB = %.2f' % (r['taper_ratio']))
 	for r in results_ref:
 		plt.plot(r['y/b'], r['cl/CL'], '--', label=u'\u03BB = %.2f (ref)' % (r['taper_ratio']))
 	plt.ylim(0, 1.5)
-	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
+	plt.xlabel('Fraction de demi-envergure (2y/b)')
 	plt.ylabel('cl/CL')
-	plt.title('Effet du taper ratio sur la distribution de portance')
+	plt.title('Effet de l\'effilement sur la distribution de portance')
 	plt.grid()
 	plt.legend()
 	plt.savefig('figs/q1d.png') #save plot to file
+	print("Plot saved in figs folder.")
 
 
 #----Question 1 (e)----
@@ -306,7 +313,7 @@ def show_q1e():
 	plt.figure()
 	for r in result_ii:
 		plt.plot(r['y/b'], r['cl/CL'])
-	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
+	plt.xlabel('Fraction de demi-envergure (2y/b)')
 	plt.ylabel('cl/CL')
 	plt.title('Distribution de portante d\'une aile elliptique')
 	plt.grid()
@@ -344,14 +351,14 @@ def run_q3(pool, queue):
 	AR = 0
 	span = 10
 	twist = ((0,-4), (0,0), (0,4))
-	results = full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span, twist)
+	results = full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span, twist, wingtype=2)
 	CL = [[], [], []]
 	for r in results:
 		CL[[t[-1] for t in twist].index(r['twist'][-1])].append(r['prob'].CL[0])
 	newalphaRange = []
 	for i,CLi in enumerate(CL):
 		newalphaRange.append(interp1d(sorted(CLi), alphaRange)(0.5)+0)
-	results = full_run(pool, queue, taper_ratio, newalphaRange, sweep, AR, span, twist, asis=True)
+	results = full_run(pool, queue, taper_ratio, newalphaRange, sweep, AR, span, twist, wingtype=2, asis=True)
 	# Save results as CSV
 	with open('data/q3-i.csv', 'w', newline='') as f:
 		writer = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
@@ -377,12 +384,12 @@ def show_q3():
 	# Generate plot
 	plt.figure()
 	for r in results_ii:
-		plt.plot(r['y/b'], r['clclocal/cavg'], label=u'Twist=%s\u00B0' % (r['twist']))
-	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
-	plt.ylabel('cl/CL')
-	plt.title('Distribution de portante d\'une aile elliptique')
+		plt.plot(r['y/b'], r['clclocal/cavg'], label=u'Twist = %d\u00B0' % (r['twist']))
+	plt.xlabel('Fraction de demi-envergure (2y/b)')
+	plt.ylabel('Cl*c_local/c_avg')
+	plt.title('Effet de la vrille sur la distribution de portance')
 	plt.grid()
-	plt.legend()
+	plt.legend(loc=3)
 	plt.savefig('figs/q3-ii.png') #save plot to file
 
 
@@ -402,10 +409,10 @@ def show_q0():
 
 #----Code Runner----
 if __name__ == '__main__':
-	questions = {'q0':0, 'q1a':1, 'q1b':2, 'q1c':1, 'q1d':1, 'q1e':1, 'q2':1, 'q3':1}
+	questions = {'q0':0, 'q1a':1, 'q1b':1, 'q1c':1, 'q1d':1, 'q1e':1, 'q2':1, 'q3':1}
 	datafiles = listdir('data')
 	multiprocessing.freeze_support()
-	pool = multiprocessing.Pool(processes=24)
+	pool = multiprocessing.Pool()
 	queue = multiprocessing.Manager().Queue()
 	for q in questions:
 		if questions[q] > 0:
