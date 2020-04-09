@@ -15,20 +15,26 @@ import matplotlib.pyplot as plt
 from libraries.vlm import *
 
 
-def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, wingtype=1):
+def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(0,0), wingtype=1):
 	print(f'Calculating (taper_ratio={taper_ratio}, alphaRange={alphaRange}, sweep={sweep}, AR={AR}, wingtype={wingtype})...', flush=True)
 	if wingtype in (1,2):
-		span = AR*(1+taper_ratio)/4
-		Sref = AR*(1+taper_ratio)**2/8
+		if span is None:
+			span = AR*(1+taper_ratio)/4
+			Sref = AR*(1+taper_ratio)**2/8
+		else:
+			Sref = (1+taper_ratio)*span/2
 	elif wingtype == 3:
-		span = AR*pi/8
-		Sref = AR*pi**2/32
+		if span is None:
+			span = AR*pi/8
+			Sref = AR*pi**2/32
+		else:
+			Sref = b*pi/4
 	vlm_prob = VLM(ni=5,
 				   nj=50,
 				   chordRoot=1.0,
 				   chordTip=1.0*taper_ratio,
-				   twistRoot=0.0,
-				   twistTip=0.0,
+				   twistRoot=twist[0],
+				   twistTip=twist[1],
 				   span=span,
 				   sweep=sweep,
 				   Sref=Sref,
@@ -38,12 +44,15 @@ def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, wingtype=1):
 	vlm_prob.run()
 	queue.put({'taper_ratio':taper_ratio, 'alphaRange':alphaRange, 'sweep':sweep, 'AR':AR, 'wingtype':wingtype, 'prob':vlm_prob})
 
-def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, wingtype=1):
+def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, twist=(0,0), wingtype=1):
 	if not hasattr(taper_ratio, '__iter__'): taper_ratio = (taper_ratio,)
 	if not hasattr(alphaRange, '__iter__'): alphaRange = ((alphaRange,),)
 	else: alphaRange = [a if hasattr(a, '__iter__') else (a,) for a in alphaRange]
 	if not hasattr(sweep, '__iter__'): sweep = (sweep,)
 	if not hasattr(AR, '__iter__'): AR = (AR,)
+	assert hasattr(twist, '__iter__'), 'twist argument must be a list: (twistRoot, twistTip)'
+	if not hasattr(twist[0], '__iter__'):
+		twist = (twist[0:2],)
 	if not hasattr(wingtype, '__iter__'): wingtype = (wingtype,)
 	# Enqueuing VLM results from multiprocessor pool for each combination of AR and sweep
 	vlm_partial = partial(vlm_enqueue, queue)
@@ -72,6 +81,9 @@ def save_data(results, filename, datatype):
 		elif datatype == '2y/b-cl/CL':
 			writer.writerow(row + ['2y/b', 'cl/CL'])
 		for r in results:
+			if datatype == 'alpha-CL':
+				for i,alpha in r['alphaRange']:
+					writer.writerow([r['taper_ratio'], alpha, r['sweep'], r['AR'], r['prob'].CL[i]])
 			if datatype == 'AR-CL_alpha':
 				writer.writerow([r['taper_ratio'], r['alphaRange'], r['sweep'], r['AR'], r['prob'].CL_alpha,])
 			elif datatype == '2y/b-cl/CL':
@@ -265,7 +277,7 @@ def show_q1e():
 
 #-------Tests-------
 def run_q0(pool,queue):
-	taper_ratio = 1
+	taper_ratio = 0.4
 	alphaRange = 10
 	sweep = range(5,10,1)
 	AR = 7.28
