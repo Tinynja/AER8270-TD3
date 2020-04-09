@@ -86,7 +86,7 @@ def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(
 def save_data(results, filename, datatype):
 	with open(f'data/{filename}.csv', 'w', newline='') as f:
 		writer = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
-		row = ['taper_ratio', 'alphaRange', 'sweep', 'AR']
+		row = ['taper_ratio', 'alphaRange', 'sweep', 'twist', 'AR']
 		if datatype == 'alpha-CL':
 			writer.writerow(row + ['CL',])
 		elif datatype == 'AR-CL_alpha':
@@ -98,15 +98,15 @@ def save_data(results, filename, datatype):
 		for r in results:
 			if datatype == 'alpha-CL':
 				for i,alpha in enumerate(r['alphaRange']):
-					writer.writerow([r['taper_ratio'], alpha, r['sweep'], r['AR'], r['prob'].CL[i]])
+					writer.writerow([r['taper_ratio'], alpha, r['sweep'], r['twist'][-1], r['AR'], r['prob'].CL[i]])
 			elif datatype == 'AR-CL_alpha':
-				writer.writerow([r['taper_ratio'], r['alphaRange'], r['sweep'], r['AR'], r['prob'].CL_alpha,])
+				writer.writerow([r['taper_ratio'], r['alphaRange'], r['sweep'], r['twist'][-1], r['AR'], r['prob'].CL_alpha,])
 			elif datatype == 'y/b-cl/CL':
-				params = [r['taper_ratio'], r['alphaRange'][-1], r['sweep'], r['AR']]
+				params = [r['taper_ratio'], r['alphaRange'][-1], r['sweep'], r['twist'][-1], r['AR']]
 				for j,y in enumerate(r['prob'].spanLoad[-1]['y']):
 					writer.writerow(params + [y/r['prob'].span, r['prob'].spanLoad[-1]['cl_sec'][j]/r['prob'].CL[-1]])
 			elif datatype == 'y/b-clclocal/cavg':
-				params = [r['taper_ratio'], r['alphaRange'][-1], r['sweep'], r['AR']]
+				params = [r['taper_ratio'], r['alphaRange'][-1], r['sweep'], r['twist'][-1], r['AR']]
 				for j,y in enumerate(r['prob'].spanLoad[-1]['y']):
 					writer.writerow(params + [y/r['prob'].span, r['prob'].spanLoad[-1]['cl_sec'][j]*r['prob'].clocal[j]/r['prob'].cavg])
 
@@ -119,23 +119,23 @@ def read_data(filename, datatype, sort_by=None):
 		reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
 		for row in reader:
 			if datatype == 'alpha-CL':
-				if len(results) == 0 or (results[-1]['taper_ratio'] != row['taper_ratio'] or results[-1]['sweep'] != row['sweep'] or results[-1]['AR'] != row['AR']):
-					results.append({'taper_ratio':row['taper_ratio'], 'AR':row['AR'], 'sweep':row['sweep'], 'alphaRange':[], 'CL':[]})
+				if len(results) == 0 or (results[-1]['taper_ratio'] != row['taper_ratio'] or results[-1]['sweep'] != row['sweep'] or results[-1]['twist'] != row['twist'] or results[-1]['AR'] != row['AR']):
+					results.append({'taper_ratio':row['taper_ratio'], 'AR':row['AR'], 'sweep':row['sweep'], 'twist':row['twist'], 'alphaRange':[], 'CL':[]})
 				results[-1]['alphaRange'].append(row['alphaRange'])
 				results[-1]['CL'].append(row['CL'])
 			elif datatype == 'AR-CL_alpha':
-				if len(results) == 0 or (results[-1]['taper_ratio'] != row['taper_ratio'] or results[-1]['alphaRange'] != row['alphaRange'] or results[-1]['sweep'] != row['sweep']):
-					results.append({'taper_ratio':row['taper_ratio'], 'alphaRange':row['alphaRange'], 'sweep':row['sweep'], 'AR':[], 'CL_alpha':[]})
+				if len(results) == 0 or (results[-1]['taper_ratio'] != row['taper_ratio'] or results[-1]['alphaRange'] != row['alphaRange'] or results[-1]['sweep'] != row['sweep'] or results[-1]['twist'] != row['twist']):
+					results.append({'taper_ratio':row['taper_ratio'], 'alphaRange':row['alphaRange'], 'sweep':row['sweep'], 'twist':row['twist'], 'AR':[], 'CL_alpha':[]})
 				results[-1]['AR'].append(row['AR'])
 				results[-1]['CL_alpha'].append(row['CL_alpha'])
 			elif datatype == 'y/b-cl/CL':
-				if len(results) == 0 or (results[-1]['taper_ratio'] != row['taper_ratio'] or results[-1]['alphaRange'] != row['alphaRange'] or results[-1]['sweep'] != row['sweep'] or results[-1]['AR'] != row['AR']):
-					results.append({'taper_ratio':row['taper_ratio'], 'alphaRange':row['alphaRange'], 'sweep':row['sweep'], 'AR':row['AR'], 'y/b':[], 'cl/CL':[]})
+				if len(results) == 0 or (results[-1]['taper_ratio'] != row['taper_ratio'] or results[-1]['alphaRange'] != row['alphaRange'] or results[-1]['sweep'] != row['sweep'] or results[-1]['twist'] != row['twist'] or results[-1]['AR'] != row['AR']):
+					results.append({'taper_ratio':row['taper_ratio'], 'alphaRange':row['alphaRange'], 'sweep':row['sweep'], 'twist':row['twist'], 'AR':row['AR'], 'y/b':[], 'cl/CL':[]})
 				results[-1]['y/b'].append(row['y/b'])
 				results[-1]['cl/CL'].append(row['cl/CL'])
 			elif datatype == 'y/b-clclocal/cavg':
-				if len(results) == 0 or (results[-1]['taper_ratio'] != row['taper_ratio'] or results[-1]['alphaRange'] != row['alphaRange'] or results[-1]['sweep'] != row['sweep'] or results[-1]['AR'] != row['AR']):
-					results.append({'taper_ratio':row['taper_ratio'], 'alphaRange':row['alphaRange'], 'sweep':row['sweep'], 'AR':row['AR'], 'y/b':[], 'clclocal/cavg':[]})
+				if len(results) == 0 or (results[-1]['taper_ratio'] != row['taper_ratio'] or results[-1]['alphaRange'] != row['alphaRange'] or results[-1]['sweep'] != row['sweep'] or results[-1]['twist'] != row['twist'] or results[-1]['AR'] != row['AR']):
+					results.append({'taper_ratio':row['taper_ratio'], 'alphaRange':row['alphaRange'], 'sweep':row['sweep'], 'twist':row['twist'], 'AR':row['AR'], 'y/b':[], 'clclocal/cavg':[]})
 				results[-1]['y/b'].append(row['y/b'])
 				results[-1]['clclocal/cavg'].append(row['clclocal/cavg'])
 	if sort_by is not None:
@@ -336,19 +336,20 @@ def run_q3(pool, queue):
 
 def show_q3():
 	# Read results from CSV
+	results_i = []
 	with open('data/q3-i.csv', 'r', newline='') as f:
 		reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
 		for row in reader:
-			results_i = row
+			results_i.append(row)
 	# Read results from CSV
-	results_ii = read_data('q3-ii', 'y/b-clclocal/cavg')
+	results_ii = read_data('q3-ii', 'y/b-clclocal/cavg', sort_by='twist')
 	# Print results
 	for r in results_i:
 		print(f"Coefficient de trainée induite (twist = {r['twist']}): {r['CDi']}")
 	# Generate plot
 	plt.figure()
 	for r in results_ii:
-		plt.plot(r['y/b'], r['y/b-clclocal/cavg'], label=u'Twist=%s\u00B0' % (r['twist'][-1]))
+		plt.plot(r['y/b'], r['clclocal/cavg'], label=u'Twist=%s\u00B0' % (r['twist']))
 	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
 	plt.ylabel('cl/CL')
 	plt.title('Distribution de portante d\'une aile elliptique')
@@ -373,7 +374,7 @@ def show_q0():
 
 #----Code Runner----
 if __name__ == '__main__':
-	questions = {'q0':0, 'q1a':0, 'q1b':0, 'q1c':0, 'q1d':0, 'q1e':0, 'q3':2}
+	questions = {'q0':0, 'q1a':0, 'q1b':0, 'q1c':0, 'q1d':0, 'q1e':0, 'q3':1}
 	datafiles = listdir('data')
 	multiprocessing.freeze_support()
 	pool = multiprocessing.Pool()
