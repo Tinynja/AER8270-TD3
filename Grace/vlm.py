@@ -1,20 +1,14 @@
-#Standard libs
+import numpy as np
+from Vector3 import Vector3
+from vortexRing import vortexRing as panel
 from math import *
 import sys
-
-#Pip libs
-import numpy as np
 from scipy import linalg
-
-#User libs
-from libraries.Vector3 import Vector3
-from libraries.vortexRing import vortexRing as panel
 
 class VLM:
 	def __init__(self, ni=5, nj=10, chordRoot=1.0, chordTip=1.0, twistRoot=0.0, twistTip=0.0, span=5.0, sweep=30.0, Sref = 1.0, referencePoint=[0.0,0.0,0.0], wingType=1, alphaRange = [0.0]):
 
 		self.size = ni * nj
-
 		self.A   = np.zeros((self.size,self.size))
 		self.rhs = np.zeros(self.size)
 		self.inducedDownwash = [np.zeros((self.size,self.size)), np.zeros((self.size,self.size)), np.zeros((self.size,self.size))]
@@ -37,7 +31,6 @@ class VLM:
 		self.twistRoot = twistRoot
 		self.twistTip  = twistTip
 		self.span      = span
-		self.AR        = self.span/(self.chordRoot)
 		self.sweep     = sweep * pi / 180.0
 		self.referencePoint = Vector3(referencePoint[0],
 			                          referencePoint[1],
@@ -46,17 +39,12 @@ class VLM:
 
 		self.CL = []
 		self.CD = []
-		self.CDi = []
 		self.CM = []
-
-		self.clocal = np.zeros(self.nj)
 		self.spanLoad = []
-
-		if not hasattr(alphaRange, '__iter__'): alphaRange = (alphaRange,)
+        
 		self.alphaRange = alphaRange
 		self.Ufree = Vector3(1.0,0.0,0.0)
 		self.rho = 1.0
-
 
 	def calcA(self):
 
@@ -140,42 +128,34 @@ class VLM:
 		self.CD[-1] /= ( 0.5 * self.rho * self.Ufree.Magnitude()**2 * self.Sref)
 		self.CM[-1] /= ( 0.5 * self.rho * self.Ufree.Magnitude()**2 * self.Sref * self.cavg)
 
-		if len(self.alphaRange) > 1:
-			self.CL_alpha = (self.CL[-1]-self.CL[0])/radians(self.alphaRange[-1]-self.alphaRange[0])
-
-
-	def lifting_line(self):
-		ypos = self.spanLoad[-1]['y']
-		cl_sec = self.spanLoad[-1]['cl_sec']
-		corde = self.clocal
-		
-		theta = np.zeros(len(ypos))
-		gamma = np.zeros(len(cl_sec))
-		An = np.zeros(len(cl_sec))
-
-		for j in range(0,self.nj):
-			theta[j] = acos(-ypos[j]/self.span)
-			gamma[j] = 0.5*cl_sec[j]*corde[j]
-
-		for i in range (0,self.nj):
-			sigma = 0
-			for l in range(0,self.nj):
-				sigma = sigma + (gamma[l]*sin((2*i+1)*theta[l]))
-			An[i] = sigma*2/(self.nj+1)/(4*self.span)
-		
-		delta=0
-		for i in range(1, len(An)):
-			delta += (2*i+1)*(An[i]/An[0])**2.0
-		
-		CL= pi*An[0]*self.AR
-		self.e = 1.0/(1.0+delta)
-		self.CDi.append((CL**2)/(self.e*pi*self.AR))
-
-
-	def writeSpanload(self, outputfile):
+	def writeSpanload(self,outputfile):
 		ypos = np.zeros(self.nj)
-		cl_sec = np.zeros(self.nj)
-		dy=np.zeros(self.nj)
+		cl_sec = np.zeros(self.nj) 
+		for j in range(self.nj):
+			area = 0.0
+			cl = 0.0
+			for i in range(self.ni):
+				ia = self.ni*j + i
+				panel = self.panels[ia]
+				area += panel.Area() 
+				force = self.Ufree.crossProduct(panel.dl()) * self.rho * self.gammaij[ia]
+				cl += force.dot(self.liftAxis)
+            
+			cl /= ( 0.5 * self.rho * self.Ufree.Magnitude()**2 * area)
+			ypos[j] = self.panels[self.ni * j].forceActingPoint()[1]
+            #corde_local[j]=area/panel.dy()
+            #gamma_y[j] = 0.5*cl*1*(area/panel.dy())
+
+		fid = open(outputfile, 'w')
+		fid.write("VARIABLES= \"Y\",\"Cl\"\n")
+		for i,y in enumerate(ypos):
+			fid.write("%.4lf %.4lf\n" % (y, cl_sec[i]))
+		fid.close()
+        
+	def lifting_line(self):
+		ypos = np.zeros(self.nj)
+		cl_sec = np.zeros(self.nj) 
+		corde=np.zeros(self.nj)
 		for j in range(self.nj):
 			area = 0.0
 			cl = 0.0
@@ -187,23 +167,12 @@ class VLM:
 				cl += force.dot(self.liftAxis)
 
 			cl /= ( 0.5 * self.rho * self.Ufree.Magnitude()**2 * area)
-
 			ypos[j] = self.panels[self.ni * j].forceActingPoint()[1]
 			cl_sec[j] = cl
-			dy[j]=self.panels[self.ni*j].dy()
-			self.clocal[j] = area/dy[j]
+			corde[j]=area/panel.dy()
+            
+		return(ypos, cl_sec,corde)        
 
-		self.spanLoad.append({'y': [], 'cl_sec': []})
-
-		fid = open(outputfile, 'w')
-		fid.write("VARIABLES= \"Y\",\"Cl\"\n")
-
-		for i,y in enumerate(ypos):
-			fid.write("%.4lf %.4lf\n" % (y, cl_sec[i]))
-			self.spanLoad[-1]['y'].append(y)
-			self.spanLoad[-1]['cl_sec'].append(cl_sec[i])
-
-		fid.close()
 
 	
 	def writeSolution(self,outputfile):
@@ -255,10 +224,11 @@ class VLM:
 				pan = self.panels[ia]
 				out += '%lf '%(self.gamma[ia])
 
+
 		f = open(outputfile,'w')
 		f.write(out)
 		f.close()
-			
+
 
 	def initializeWing(self):
 		dy = self.span/float(self.nj)
@@ -415,11 +385,10 @@ class VLM:
 			self.solve()
 			self.postProcess()
 			self.computeForcesAndMoment()
-			self.writeSolution('data/3D_sol_A%.2lf.dat' % alpha)
-			self.writeSpanload('data/Spanload_A%.2lf.dat' % alpha)
-			self.lifting_line()
+			self.writeSpanload('Spanload_A%.2lf.dat' % alpha)
+			self.writeSolution('3D_sol_A%.2lf.dat' % alpha)
 
-			#print('Alpha= %.2lf CL= %.3lf CD= %.4lf CM= %.4lf' % (alpha, self.CL[-1], self.CD[-1], self.CM[-1]))
+			print('Alpha= %.2lf CL= %.3lf CD= %.4lf CM= %.4lf' % (alpha, self.CL[-1], self.CD[-1], self.CM[-1]))
 
 
 if __name__ == '__main__':

@@ -10,6 +10,7 @@ from itertools import product
 # Pip libs
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
 
 # User libs
 from libraries.vlm import *
@@ -27,7 +28,7 @@ def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(0,0
 	elif wingtype == 3:
 		span = AR*pi/8
 		Sref = AR*pi**2/32
-	print(f'Calculating (taper_ratio={taper_ratio}, alphaRange={alphaRange}, sweep={sweep}, AR={AR}, span={span}, twist={twist}, wingtype={wingtype})...', flush=True)
+	print(f'Calculating (taper_ratio={taper_ratio}, alphaRange={alphaRange}, sweep={sweep}, AR={AR:g}, span={span}, twist={twist}, wingtype={wingtype})...', flush=True)
 	vlm_prob = VLM(ni=5,
 				   nj=50,
 				   chordRoot=1.0,
@@ -41,9 +42,10 @@ def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(0,0
 				   wingType=wingtype,
 				   alphaRange = alphaRange)
 	vlm_prob.run()
-	queue.put({'taper_ratio':taper_ratio, 'alphaRange':alphaRange, 'sweep':sweep, 'AR':AR, 'wingtype':wingtype, 'prob':vlm_prob})
+	queue.put({'taper_ratio':taper_ratio, 'alphaRange':alphaRange, 'sweep':sweep, 'AR':AR,
+						 'span':span, 'twist':twist, 'wingtype':wingtype, 'prob':vlm_prob})
 
-def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(0,0), wingtype=1):
+def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(0,0), wingtype=1, asis=False):
 	if not hasattr(taper_ratio, '__iter__'): taper_ratio = (taper_ratio,)
 	if not hasattr(alphaRange, '__iter__'): alphaRange = ((alphaRange,),)
 	else: alphaRange = [a if hasattr(a, '__iter__') else (a,) for a in alphaRange]
@@ -55,20 +57,29 @@ def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(
 		twist = (twist[0:2],)
 	if not hasattr(wingtype, '__iter__'): wingtype = (wingtype,)
 	# Enqueuing VLM results from multiprocessor pool for each combination of AR and sweep
+	params = []
+	if asis:
+		args = ['taper_ratio', 'alphaRange', 'sweep', 'AR', 'span', 'twist', 'wingtype']
+		new_args = []
+		locals_ = locals()
+		repl = max([len(locals_[a]) for a in args])
+		for a in args:
+			l = len(locals_[a])
+			assert l in (1, repl), f'Length of argument `{a}` should be 1 or {repl}.'
+			if l == 1:
+				new_args.append(locals()[a]*repl)
+			else:
+				new_args.append(locals()[a])
+		params = zip(*new_args)
+	else:
+		params = product(taper_ratio, alphaRange, sweep, AR, span, twist, wingtype)
 	vlm_partial = partial(vlm_enqueue, queue)
-	pool.starmap(vlm_partial, product(taper_ratio, alphaRange, sweep, AR, wingtype))
+	pool.starmap(vlm_partial, params)
 	# Dequeue results
 	full = []
 	for i in range(queue.qsize()):
 		qi = queue.get()
-		full.append({
-			'taper_ratio': qi['taper_ratio'],
-			'alphaRange': qi['alphaRange'],
-			'sweep': qi['sweep'],
-			'AR': qi['AR'],
-			'wingtype': qi['wingtype'],
-			'prob': qi['prob']
-		})
+		full.append(qi)
 	# Return results
 	return full
 
@@ -80,18 +91,24 @@ def save_data(results, filename, datatype):
 			writer.writerow(row + ['CL',])
 		elif datatype == 'AR-CL_alpha':
 			writer.writerow(row + ['CL_alpha',])
-		elif datatype == '2y/b-cl/CL':
-			writer.writerow(row + ['2y/b', 'cl/CL'])
+		elif datatype == 'y/b-cl/CL':
+			writer.writerow(row + ['y/b', 'cl/CL'])
+		elif datatype == 'y/b-clclocal/cavg':
+			writer.writerow(row + ['y/b', 'clclocal/cavg'])
 		for r in results:
 			if datatype == 'alpha-CL':
 				for i,alpha in enumerate(r['alphaRange']):
 					writer.writerow([r['taper_ratio'], alpha, r['sweep'], r['AR'], r['prob'].CL[i]])
 			elif datatype == 'AR-CL_alpha':
 				writer.writerow([r['taper_ratio'], r['alphaRange'], r['sweep'], r['AR'], r['prob'].CL_alpha,])
-			elif datatype == '2y/b-cl/CL':
+			elif datatype == 'y/b-cl/CL':
 				params = [r['taper_ratio'], r['alphaRange'][-1], r['sweep'], r['AR']]
-				for j,y in enumerate(r['prob'].spanLoad[r['alphaRange'][-1]]['y']):
-					writer.writerow(params + [y/r['prob'].span, r['prob'].spanLoad[r['alphaRange'][-1]]['cl_sec'][j]/r['prob'].CL[-1]])
+				for j,y in enumerate(r['prob'].spanLoad[-1]['y']):
+					writer.writerow(params + [y/r['prob'].span, r['prob'].spanLoad[-1]['cl_sec'][j]/r['prob'].CL[-1]])
+			elif datatype == 'y/b-clclocal/cavg':
+				params = [r['taper_ratio'], r['alphaRange'][-1], r['sweep'], r['AR']]
+				for j,y in enumerate(r['prob'].spanLoad[-1]['y']):
+					writer.writerow(params + [y/r['prob'].span, r['prob'].spanLoad[-1]['cl_sec'][j]*r['prob'].clocal[j]/r['prob'].cavg])
 
 def read_data(filename, datatype, sort_by=None):
 	# Reads results from CSV file and saves them as (depending on datatype):
@@ -111,11 +128,16 @@ def read_data(filename, datatype, sort_by=None):
 					results.append({'taper_ratio':row['taper_ratio'], 'alphaRange':row['alphaRange'], 'sweep':row['sweep'], 'AR':[], 'CL_alpha':[]})
 				results[-1]['AR'].append(row['AR'])
 				results[-1]['CL_alpha'].append(row['CL_alpha'])
-			elif datatype == '2y/b-cl/CL':
+			elif datatype == 'y/b-cl/CL':
 				if len(results) == 0 or (results[-1]['taper_ratio'] != row['taper_ratio'] or results[-1]['alphaRange'] != row['alphaRange'] or results[-1]['sweep'] != row['sweep'] or results[-1]['AR'] != row['AR']):
-					results.append({'taper_ratio':row['taper_ratio'], 'alphaRange':row['alphaRange'], 'sweep':row['sweep'], 'AR':row['AR'], '2y/b':[], 'cl/CL':[]})
-				results[-1]['2y/b'].append(row['2y/b'])
+					results.append({'taper_ratio':row['taper_ratio'], 'alphaRange':row['alphaRange'], 'sweep':row['sweep'], 'AR':row['AR'], 'y/b':[], 'cl/CL':[]})
+				results[-1]['y/b'].append(row['y/b'])
 				results[-1]['cl/CL'].append(row['cl/CL'])
+			elif datatype == 'y/b-clclocal/cavg':
+				if len(results) == 0 or (results[-1]['taper_ratio'] != row['taper_ratio'] or results[-1]['alphaRange'] != row['alphaRange'] or results[-1]['sweep'] != row['sweep'] or results[-1]['AR'] != row['AR']):
+					results.append({'taper_ratio':row['taper_ratio'], 'alphaRange':row['alphaRange'], 'sweep':row['sweep'], 'AR':row['AR'], 'y/b':[], 'clclocal/cavg':[]})
+				results[-1]['y/b'].append(row['y/b'])
+				results[-1]['clclocal/cavg'].append(row['clclocal/cavg'])
 	if sort_by is not None:
 		return sorted(results, key=lambda k: k[sort_by])
 	return results
@@ -188,21 +210,21 @@ def run_q1c(pool, queue):
 	# Running the VLMs
 	results = full_run(pool, queue, taper_ratio, alpha, sweep, AR)
 	# Save results as CSV
-	save_data(results, 'q1c', '2y/b-cl/CL')
+	save_data(results, 'q1c', 'y/b-cl/CL')
 	# Return results
 	return results
 
 def show_q1c():
 	# Read results from CSV
-	results = read_data('q1c', '2y/b-cl/CL', sort_by='sweep')
+	results = read_data('q1c', 'y/b-cl/CL', sort_by='sweep')
 	# Read reference values from CSV
-	results_ref = read_data('q1c_ref', '2y/b-cl/CL', sort_by='sweep')
+	results_ref = read_data('q1c_ref', 'y/b-cl/CL', sort_by='sweep')
 	# Generate plot
 	plt.figure()
 	for r in results:
-		plt.plot(r['2y/b'], r['cl/CL'], label=u'\u039B = %f\u00B0' % (r['sweep']))
+		plt.plot(r['y/b'], r['cl/CL'], label=u'\u039B = %f\u00B0' % (r['sweep']))
 	for r in results_ref:
-		plt.plot(r['2y/b'], r['cl/CL'], '--', label=u'\u039B = %d\u00B0 (ref)' % (r['sweep']))
+		plt.plot(r['y/b'], r['cl/CL'], '--', label=u'\u039B = %d\u00B0 (ref)' % (r['sweep']))
 	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
 	plt.ylabel('cl/CL')
 	plt.title('Effet du sweep sur la distribution de portance')
@@ -220,21 +242,21 @@ def run_q1d(pool, queue):
 	# Running the VLMs
 	results = full_run(pool, queue, taper_ratio, alpha, sweep, AR)
 	# Save results as CSV
-	save_data(results, 'q1d', '2y/b-cl/CL')
+	save_data(results, 'q1d', 'y/b-cl/CL')
 	# Return results
 	return results
 
 def show_q1d():
 	# Read results from CSV
-	results = read_data('q1d', '2y/b-cl/CL', sort_by='taper_ratio')
+	results = read_data('q1d', 'y/b-cl/CL', sort_by='taper_ratio')
 	# Read reference values from CSV
-	results_ref = read_data('q1d_ref', '2y/b-cl/CL', sort_by='taper_ratio')
+	results_ref = read_data('q1d_ref', 'y/b-cl/CL', sort_by='taper_ratio')
 	# Generate plot
 	plt.figure()
 	for r in results:
-		plt.plot(r['2y/b'], r['cl/CL'], label=u'\u03BB = %.2f' % (r['taper_ratio']))
+		plt.plot(r['y/b'], r['cl/CL'], label=u'\u03BB = %.2f' % (r['taper_ratio']))
 	for r in results_ref:
-		plt.plot(r['2y/b'], r['cl/CL'], '--', label=u'\u03BB = %.2f (ref)' % (r['taper_ratio']))
+		plt.plot(r['y/b'], r['cl/CL'], '--', label=u'\u03BB = %.2f (ref)' % (r['taper_ratio']))
 	plt.ylim(0, 1.5)
 	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
 	plt.ylabel('cl/CL')
@@ -249,15 +271,16 @@ def run_q1e(pool, queue):
 	taper_ratio = 1
 	alpha = ((0,10),)
 	sweep = 0
-	AR = 13.4
+	AR = 0
+	span = 20
 	# Run VLM
-	result = full_run(pool, queue, taper_ratio, alpha, sweep, AR, wingtype=3)
+	result = full_run(pool, queue, taper_ratio, alpha, sweep, AR, span, wingtype=3)
 	# Save results as CSV
 	with open('data/q1e-i.csv', 'w', newline='') as f:
 		writer = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
-		writer.writerow(['AR', 'CL', 'CL_alpha'])
-		writer.writerow([result[0]['AR'], result[0]['prob'].CL[-1], result[0]['prob'].CL_alpha])
-	save_data(result, 'q1e-ii', '2y/b-cl/CL')
+		writer.writerow(['AR', 'CL', 'CD', 'CL_alpha'])
+		writer.writerow([result[0]['AR'], result[0]['prob'].CL[-1], result[0]['prob'].CD[-1], result[0]['prob'].CL_alpha])
+	save_data(result, 'q1e-ii', 'y/b-cl/CL')
 	# Return result
 	return result
 
@@ -268,15 +291,16 @@ def show_q1e():
 		for row in reader:
 			result_i = row
 	# Read results from CSV
-	result_ii = read_data('q1e-ii', '2y/b-cl/CL')
+	result_ii = read_data('q1e-ii', 'y/b-cl/CL')
 	# Print results
 	print('Aspect ratio (AR): %g' % result_i['AR'])
 	print('Pente de portance-incidence: %f*pi/(1+2/AR)' % (result_i['CL_alpha']*(1+2/result_i['AR'])/pi))
-	print('Coefficient d\'Oswald: %f' % (result_i['CL']**2/(pi*exp(1)*result_i['AR'])))
+	print('Coefficient d\'Oswald: %f' % (result_i['CL']**2/(pi*result_i['CD']*result_i['AR'])))
+	#e = CL[1]**2 / (math.pi * CD[1] * AR)
 	# Generate plot
 	plt.figure()
 	for r in result_ii:
-		plt.plot(r['2y/b'], r['cl/CL'])
+		plt.plot(r['y/b'], r['cl/CL'])
 	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
 	plt.ylabel('cl/CL')
 	plt.title('Distribution de portante d\'une aile elliptique')
@@ -284,38 +308,72 @@ def show_q1e():
 	plt.savefig('figs/q1e-ii.png') #save plot to file
 
 
-#-------Tests-------
-def run_q0(pool,queue):
+#------Question 3------
+def run_q3(pool, queue):
 	taper_ratio = 0.4
-	alphaRange = np.arange(0,11,10)
+	alphaRange = (-10, 10)
 	sweep = 35
 	AR = 0
 	span = 10
-	# Running the VLMs
-	results = full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span)
+	twist = ((0,-4), (0,0), (0,4))
+	results = full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span, twist)
+	CL = [[], [], []]
+	for r in results:
+		CL[[t[-1] for t in twist].index(r['twist'][-1])].append(r['prob'].CL[0])
+	newalphaRange = []
+	for i,CLi in enumerate(CL):
+		newalphaRange.append(interp1d(sorted(CLi), alphaRange)(0.5)+0)
+	results = full_run(pool, queue, taper_ratio, newalphaRange, sweep, AR, span, twist, asis=True)
 	# Save results as CSV
-	save_data(results, 'q0', 'alpha-CL')
+	with open('data/q3-i.csv', 'w', newline='') as f:
+		writer = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
+		writer.writerow(['twist', 'CDi'])
+		for r in results:
+			writer.writerow([r['twist'][-1], r['prob'].CDi[0]])
+	save_data(results, 'q3-ii', 'y/b-clclocal/cavg')
 	# Return results
 	return results
-	
-def show_q0():
+
+def show_q3():
 	# Read results from CSV
-	results = read_data('q0', 'alpha-CL')
+	with open('data/q3-i.csv', 'r', newline='') as f:
+		reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONNUMERIC)
+		for row in reader:
+			results_i = row
+	# Read results from CSV
+	results_ii = read_data('q3-ii', 'y/b-clclocal/cavg')
+	# Print results
+	for r in results_i:
+		print(f"Coefficient de trainée induite (twist = {r['twist']}): {r['CDi']}")
 	# Generate plot
 	plt.figure()
-	for r in results:
-		plt.plot(r['alphaRange'], r['CL'])
-	plt.xlabel('alpha (deg)')
-	plt.ylabel('CL')
-	plt.title('Courbe CL vs alpha')
+	for r in results_ii:
+		plt.plot(r['y/b'], r['y/b-clclocal/cavg'], label=u'Twist=%s\u00B0' % (r['twist'][-1]))
+	plt.xlabel('Pourcentage de demi-envergure (2y/b)')
+	plt.ylabel('cl/CL')
+	plt.title('Distribution de portante d\'une aile elliptique')
 	plt.grid()
 	plt.legend()
-	plt.show()
+	plt.savefig('figs/q3-ii.png') #save plot to file
+
+
+#-------Tests-------
+def run_q0(pool,queue):
+	taper_ratio = 1
+	alphaRange = 10
+	sweep = 0
+	AR = 0
+	span = 10
+	# Running the VLMs
+	results = full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, twist=(0,10), span=span)
+	
+def show_q0():
+	pass
 
 
 #----Code Runner----
 if __name__ == '__main__':
-	questions = {'q0':1, 'q1a':1, 'q1b':1, 'q1c':1, 'q1d':1, 'q1e':1}
+	questions = {'q0':0, 'q1a':0, 'q1b':0, 'q1c':0, 'q1d':0, 'q1e':0, 'q3':2}
 	datafiles = listdir('data')
 	multiprocessing.freeze_support()
 	pool = multiprocessing.Pool()
