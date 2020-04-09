@@ -399,7 +399,7 @@ def show_q0():
 
 #----Code Runner----
 if __name__ == '__main__':
-	questions = {'q0':0, 'q1a':0, 'q1b':0, 'q1c':0, 'q1d':0, 'q1e':0, 'q3':2}
+	questions = {'q0':0, 'q1a':2, 'q1b':0, 'q1c':0, 'q1d':0, 'q1e':0, 'q3':0}
 	datafiles = listdir('data')
 	multiprocessing.freeze_support()
 	pool = multiprocessing.Pool()
