@@ -44,12 +44,13 @@ def vlm_enqueue(queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(0,0
 	vlm_prob.run()
 	queue.put({'taper_ratio':taper_ratio, 'alphaRange':alphaRange, 'sweep':sweep, 'AR':AR, 'wingtype':wingtype, 'prob':vlm_prob})
 
-def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, twist=(0,0), wingtype=1):
+def full_run(pool, queue, taper_ratio, alphaRange, sweep, AR, span=None, twist=(0,0), wingtype=1):
 	if not hasattr(taper_ratio, '__iter__'): taper_ratio = (taper_ratio,)
 	if not hasattr(alphaRange, '__iter__'): alphaRange = ((alphaRange,),)
 	else: alphaRange = [a if hasattr(a, '__iter__') else (a,) for a in alphaRange]
 	if not hasattr(sweep, '__iter__'): sweep = (sweep,)
 	if not hasattr(AR, '__iter__'): AR = (AR,)
+	if not hasattr(span, '__iter__'): span = (span,)
 	assert hasattr(twist, '__iter__'), 'twist argument must be a list: (twistRoot, twistTip)'
 	if not hasattr(twist[0], '__iter__'):
 		twist = (twist[0:2],)
